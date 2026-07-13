@@ -27,6 +27,7 @@
 - [Estrutura do Repositório](#-estrutura-do-repositório)
 - [Tecnologias e Ferramentas](#-tecnologias-e-ferramentas)
 - [Equipe](#-equipe)
+- [Possíveis Submissões](#-possíveis-submissões)
 - [Referências Bibliográficas](#-referências-bibliográficas)
 - [Licença](#-licença)
 
@@ -235,6 +236,15 @@ EMAP/
 | **Coordenador Geral** | [Ernesto Franklin Marçal Ferreira](https://lattes.cnpq.br/1471302586996212) | Dr. em Automação e Controle | IFMA Campus Santa Inês |
 | **Vice-Coordenador** | [Sadoc Fonseca Rocha Filho](http://lattes.cnpq.br/3143531215302528) | Me. em Matemática | IFMA Campus Pedreiras |
 | **Pesquisador** | [Leonardo Espindola Fonseca Rocha](http://lattes.cnpq.br/8635314833587192) | Esp. em Eng. Portuária | Pesq. de Hardware e Integração |
+
+---
+
+## 🌐 Possíveis Submissões
+
+### Congresso Internacional de Desempenho Portuário - XII CIDESPORT
+- **Link de acesso:** [Clique aqui](https://cidesport.com/)
+- **Local:** Florianópolis - SC
+- **Datas no link referente ao ano passado!**
 
 ---
 

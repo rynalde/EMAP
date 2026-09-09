@@ -12,3 +12,9 @@ Este arquivo registra o histórico de atualizações estruturais e de conteúdo 
   3. LILYGO TTGO Meshtastic T-Beam V1.2
   4. LILYGO TTGO SoftRF T-Echo
 - Criação dos índices locais e templates de experimentos e arquitetura de software.
+
+## [2026-09-09] - Integração da Tag Celular (T-SIM7000G)
+- Documentação da quinta placa de desenvolvimento sob pesquisa: LILYGO TTGO T-SIM7000G (ESP32-WROVER-B + SIMCom SIM7000G), a única do projeto que dispensa gateway intermediário.
+- Registro de três comportamentos de hardware levantados em bancada que condicionam o firmware: exclusividade mútua entre GNSS e dados celulares, PWRKEY como alternador de estado (e não como liga), e picos de corrente de ~2 A na transmissão.
+- Novo experimento documentando o bring-up completo do backhaul celular, com isolamento camada a camada até a causa raiz: a rede da operadora restringe a anexação deste dispositivo a portas HTTP, bloqueando toda porta capaz de TLS.
+- Inclusão da tabela de códigos de resultado do comando `AT+CAOPEN`, ausente dos manuais consultados e necessária para interpretar corretamente os diagnósticos do módulo.

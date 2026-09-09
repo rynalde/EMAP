@@ -1,0 +1,17 @@
+#
+# xiao-cs-tag configuration.
+#
+
+menu "Channel Sounding tag"
+
+config CS_TAG_FW_VERSION
+	string "Tag firmware version"
+	default "cs-tag-0.1.0"
+	help
+	  Reported upstream alongside ranging observations, so a distance in the
+	  database can be traced back to the firmware that produced it. Mirrors
+	  FW_VERSION in the Arduino firmware's config.h.
+
+endmenu
+
+source "Kconfig.zephyr"

@@ -183,16 +183,27 @@ EMAP/
 │
 ├── software/                          ← Arquitetura de software
 │   ├── index.md
-│   └── system_architecture.md         ← Fluxo de dados e camadas do sistema
+│   ├── system_architecture.md         ← Fluxo de dados e camadas do sistema
+│   └── implementation.md              ← Ponte para o MVP funcional (apps/periplus)
 │
 ├── research/                          ← Base de pesquisa
 │   ├── index.md
 │   ├── references.md                  ← Referências bibliográficas acadêmicas
 │   └── links.md                       ← Links úteis (SDKs, firmwares, APIs)
 │
-└── experiments/                       ← Testes e validações
-    ├── index.md
-    └── indoor_positioning.md          ← Mapeamento indoor com ultrassom
+├── experiments/                       ← Testes e validações
+│   ├── index.md
+│   └── indoor_positioning.md          ← Mapeamento indoor com ultrassom
+│
+└── apps/                              ← Código executável
+    ├── itaqui-digital/                ← Gêmeo digital do porto (Next.js + AIS + 3D)
+    └── periplus/                      ← MVP de rastreamento (firmware + backend)
+        ├── firmware/                  ← Sketches das placas (LoRa, BLE CS, celular)
+        ├── bridge/                    ← Ponte serial → Supabase (TypeScript)
+        ├── supabase/                  ← Migrations e seed do banco
+        ├── web/                       ← Mapa Next.js + Leaflet
+        ├── dashboard/                 ← Tabelas React + Vite
+        └── docs/                      ← Arquitetura, pinagens, setup, testes
 ```
 
 ---

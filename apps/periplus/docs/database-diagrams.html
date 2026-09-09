@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Database Architecture & ERD — periplus</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-hover: #0284c7;
+      --accent: #818cf8;
+      --success: #34d399;
+      --warning: #fbbf24;
+      --code-bg: #0b1120;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 2rem 1.5rem;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1.5rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+      margin-bottom: 0.75rem;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+    }
+
+    .nav-bar {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1.25rem;
+    }
+
+    .nav-link {
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      background: rgba(51, 65, 85, 0.5);
+      padding: 0.4rem 0.9rem;
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
+      transition: all 0.2s ease;
+    }
+
+    .nav-link:hover {
+      background: var(--primary);
+      color: #0f172a;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.75rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+    }
+
+    .card-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card-desc {
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+      font-size: 0.95rem;
+    }
+
+    .diagram-container {
+      background: #0b1329;
+      border-radius: 8px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      justify-content: center;
+    }
+
+    .mermaid {
+      min-width: 100%;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .sub-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+
+    .sub-card h3 {
+      font-size: 1.1rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .tag-type {
+      font-size: 0.75rem;
+      background: #334155;
+      color: #e2e8f0;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    table.data-table th {
+      text-align: left;
+      padding: 0.5rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--card-border);
+      font-weight: 600;
+    }
+
+    table.data-table td {
+      padding: 0.5rem;
+      border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+    }
+
+    .col-pk {
+      color: var(--warning);
+      font-weight: 600;
+    }
+
+    .col-fk {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+      padding: 0.1rem 0.3rem;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .pill-green { background: rgba(52, 211, 153, 0.15); color: var(--success); }
+    .pill-blue { background: rgba(56, 189, 248, 0.15); color: var(--primary); }
+    .pill-purple { background: rgba(129, 140, 248, 0.15); color: var(--accent); }
+
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--card-border);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="badge">Supabase PostgreSQL Schema</span>
+      <h1>Estrutura da Base de Dados &amp; Relacionamentos</h1>
+      <p class="subtitle">Modelo unificado: LoRa (LILYGO T-Beam / T-Echo), Bluetooth Channel Sounding (Seeed XIAO nRF54L15) e Celular (LILYGO T-SIM7000G)</p>
+      <nav class="nav-bar">
+        <a href="#erd-section" class="nav-link">📊 Diagrama de Entidades (ERD)</a>
+        <a href="#flow-section" class="nav-link">🔄 Fluxo de Dados &amp; Ingestão</a>
+        <a href="#tables-section" class="nav-link">📋 Dicionário de Tabelas</a>
+        <a href="#views-section" class="nav-link">👁️ Views &amp; RPCs</a>
+      </nav>
+    </header>
+
+    <!-- SECTION 1: ERD -->
+    <section id="erd-section" class="card">
+      <h2 class="card-title">📊 1. Diagrama de Entidade-Relacionamento (ERD)</h2>
+      <p class="card-desc">
+        Duas tabelas para os três rádios. O que LoRa, Channel Sounding e celular têm em comum é o modelo
+        inteiro: <strong>um dispositivo reporta uma observação sobre si mesmo ou sobre outro dispositivo</strong>.
+        O rádio virou a coluna <code>link</code>, não um conjunto de tabelas separado.
+      </p>
+      <div class="diagram-container">
+        <pre class="mermaid">
+erDiagram
+    devices ||--o{ readings : "é observado em (1:N)"
+    devices ||--o{ readings : "reporta / encaminha (1:N)"
+
+    devices {
+        text device_id PK "efuse MAC / FICR.DEVICEID / IMEI"
+        text kind "tag | gateway"
+        text link "lora | ble_cs | cellular"
+        text label "Nome / apelido"
+        text board_model "T-Beam / T-Echo / XIAO / T-SIM7000G"
+        text firmware_version "Versão do firmware"
+        text ingest_key_hash "SHA-256, só em quem escreve (oculto de anon)"
+        timestamptz last_seen_at "Último contato"
+        float8 last_lat "Última latitude válida [-90, 90]"
+        float8 last_lng "Última longitude válida [-180, 180]"
+        int4 last_battery_mv "Nível de bateria em mV"
+        jsonb metadata "Dados extras"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    readings {
+        bigserial id PK "ID sequencial"
+        text device_id FK "devices(device_id) [CASCADE]"
+        text reported_by FK "devices(device_id) [SET NULL] — null = auto-reporte"
+        timestamptz recorded_at "Hora de inserção"
+        timestamptz device_time "Timestamp do satélite"
+        int4 seq "Contador de pacote"
+        text status "fix|stale|acquiring|no_gps|ok|poor|failed"
+        float8 lat "Latitude [-90, 90] — null quando desconhecida"
+        float8 lng "Longitude [-180, 180] — null quando desconhecida"
+        numeric hdop "Precisão horizontal"
+        int4 sats "Satélites em uso"
+        float8 distance_m "Channel Sounding: distância [0, 1000] m"
+        int4 battery_mv "Tensão da bateria"
+        int4 rssi "Potência de sinal (dBm)"
+        numeric snr "Relação sinal-ruído"
+        jsonb payload "JSON completo recebido"
+    }
+        </pre>
+      </div>
+      <p class="card-desc" style="margin-top: 1rem;">
+        <strong>O que não foi unificado, de propósito:</strong> <code>lat</code>/<code>lng</code> e
+        <code>distance_m</code> continuam em colunas separadas. Uma distância é um tipo de observação
+        diferente de uma coordenada — e a posição absoluta de uma tag CS é <em>derivada</em> por uma view
+        (origem + raio), nunca gravada como se fosse um fix.
+      </p>
+    </section>
+
+    <!-- SECTION 2: FLOW & ARCHITECTURE -->
+    <section id="flow-section" class="card">
+      <h2 class="card-title">🔄 2. Fluxo de Dados: Dispositivos ➔ RPC ➔ Tabelas ➔ View</h2>
+      <p class="card-desc">Do rádio físico até a interface, por um único caminho de escrita.</p>
+      <div class="diagram-container">
+        <pre class="mermaid">
+flowchart TD
+    subgraph Dispositivos["📡 Dispositivos Físicos"]
+        TBeam["LilyGO T-Beam<br/>(LoRa GPS Tag)"]
+        TEcho["LilyGO T-Echo<br/>(LoRa Gateway)"]
+        XiaoTag["Seeed XIAO nRF54L15<br/>(BLE CS Tag)"]
+        XiaoGW["Seeed XIAO nRF54L15<br/>(CS Gateway)"]
+        TSim["LilyGO T-SIM7000G<br/>(Tag Celular)"]
+    end
+
+    subgraph Bridge["💻 Serial Bridge (Node.js)"]
+        BridgeApp["bridge/src/index.ts<br/>Validação Zod, sem roteamento"]
+    end
+
+    subgraph RPCLayer["⚡ Supabase Stored Procedure (Security Definer)"]
+        RPC_Ingest["ingest(key, payload)"]
+    end
+
+    subgraph Storage["🗄️ Tabelas"]
+        TBL_Devices[("public.devices")]
+        TBL_Readings[("public.readings")]
+    end
+
+    subgraph Views["👁️ View & Aplicações"]
+        V_Latest["view: latest_positions<br/>DISTINCT ON (device_id)"]
+        WebMap["Web App (Next.js + Leaflet)"]
+        Dashboard["Dashboard (Vite + React)"]
+    end
+
+    TBeam -->|LoRa P2P 923MHz| TEcho
+    TEcho -->|USB Serial JSON| BridgeApp
+
+    XiaoTag -.->|Channel Sounding BLE| XiaoGW
+    XiaoGW -->|USB Serial JSON| BridgeApp
+
+    BridgeApp -->|leitura encaminhada ou própria| RPC_Ingest
+    TSim -->|LTE CAT-M / HTTPS, sem gateway| RPC_Ingest
+
+    RPC_Ingest -->|Upsert último estado| TBL_Devices
+    RPC_Ingest -->|Insert leitura| TBL_Readings
+
+    TBL_Readings --> V_Latest
+    TBL_Devices -.-> V_Latest
+
+    V_Latest --> WebMap
+    V_Latest --> Dashboard
+    TBL_Readings --> Dashboard
+        </pre>
+      </div>
+      <p class="card-desc" style="margin-top: 1rem;">
+        A bridge não roteia mais. A RPC decide o que é a leitura a partir do payload:
+        <code>device_id</code> ausente (ou igual ao dono da chave) ➔ <strong>auto-reporte</strong>,
+        <code>reported_by</code> nulo; <code>device_id</code> apontando outro dispositivo ➔
+        <strong>encaminhada</strong>, <code>reported_by</code> = o gateway da chave.
+      </p>
+    </section>
+
+    <!-- SECTION 3: DICTIONARY -->
+    <section id="tables-section" class="card">
+      <h2 class="card-title">📋 3. Dicionário de Dados</h2>
+      <p class="card-desc">Campos, regras de negócio e restrições integradas no banco.</p>
+
+      <div class="grid-2">
+        <div class="sub-card">
+          <h3>
+            devices
+            <span class="tag-type">Tabela Base</span>
+          </h3>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Todo dispositivo rastreado e todo gateway, uma linha cada.</p>
+          <table class="data-table">
+            <thead>
+              <tr><th>Coluna</th><th>Tipo</th><th>Regra</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>device_id</code></td><td>text PK</td><td>Vem do silício: efuse MAC (12 hex), FICR.DEVICEID (16 hex) ou IMEI (15 díg.). Sem etapa de provisionamento.</td></tr>
+              <tr><td><code>kind</code></td><td>text</td><td>CHECK <code>tag | gateway</code>. O que o dispositivo é.</td></tr>
+              <tr><td><code>link</code></td><td>text</td><td>CHECK <code>lora | ble_cs | cellular</code>. Como ele fala. Uma tag encaminhada herda o link do gateway.</td></tr>
+              <tr><td><code>ingest_key_hash</code></td><td>text UNIQUE</td><td>Só em quem escreve (gateways e tags celulares). Nunca legível via API — GRANT por coluna, não por tabela.</td></tr>
+              <tr><td><code>last_lat</code> / <code>last_lng</code></td><td>float8</td><td>CHECK de faixa. Atualizados com <code>coalesce</code>: perder o fix não apaga a âncora do mapa.</td></tr>
+              <tr><td><code>last_battery_mv</code></td><td>int4</td><td>Aceita <code>battery_mv</code> ou <code>bat_mv</code> no payload.</td></tr>
+              <tr><td><code>metadata</code></td><td>jsonb</td><td>Guarda o primeiro payload visto e marcadores de atividade.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="sub-card">
+          <h3>
+            readings
+            <span class="tag-type">Tabela Base</span>
+          </h3>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Histórico append-only de toda observação, qualquer que seja o rádio.</p>
+          <table class="data-table">
+            <thead>
+              <tr><th>Coluna</th><th>Tipo</th><th>Regra</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>device_id</code></td><td>text FK</td><td><code>devices</code> [ON DELETE CASCADE]. De quem é a observação.</td></tr>
+              <tr><td><code>reported_by</code></td><td>text FK</td><td><code>devices</code> [ON DELETE SET NULL]. <strong>null</strong> = auto-reporte (tag celular, ou heartbeat do gateway).</td></tr>
+              <tr><td><code>status</code></td><td>text NOT NULL</td><td>Relato do próprio dispositivo, nunca inferido aqui. Texto puro, não enum: um valor novo de firmware não pode derrubar leituras válidas.</td></tr>
+              <tr><td><code>lat</code> / <code>lng</code></td><td>float8</td><td>CHECK de faixa. <strong>null</strong> quando a posição é desconhecida — nunca um placeholder.</td></tr>
+              <tr><td><code>distance_m</code></td><td>float8</td><td>Channel Sounding. CHECK [0, 1000] m. Coluna própria: uma distância nunca pode ser lida como coordenada.</td></tr>
+              <tr><td><code>payload</code></td><td>jsonb</td><td>O objeto inteiro recebido. Diagnósticos de firmware (<code>uptime_ms</code>, <code>csq</code>, <code>rx_count</code>…) chegam aqui sem mudança de schema.</td></tr>
+              <tr><td colspan="3" style="color: var(--text-muted);"><strong>CHECK</strong> <code>readings_failed_has_no_measurement</code>: se <code>status = 'failed'</code>, então <code>distance_m</code>, <code>lat</code> e <code>lng</code> são obrigatoriamente nulos. É o banco garantindo que uma medição falha nunca carregue um número.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: VIEWS & RPC -->
+    <section id="views-section" class="card">
+      <h2 class="card-title">👁️ 4. View do Banco &amp; Funções RPC</h2>
+      <p class="card-desc">Camada de abstração exposta para o frontend e para os dispositivos.</p>
+
+      <div class="grid-2">
+        <div class="sub-card">
+          <h3>View Analítica (com RLS)</h3>
+          <ul style="list-style: none; padding-left: 0; font-size: 0.9rem; line-height: 1.8;">
+            <li>
+              <span class="pill pill-blue">VIEW</span> <strong>latest_positions</strong><br/>
+              <span style="color: var(--text-muted)">Usa <code>DISTINCT ON (device_id)</code> para trazer a última leitura de cada dispositivo — tags e gateways, LoRa, CS e celular, na mesma consulta. O mapa tira sua âncora daqui em vez de uma segunda query.</span>
+            </li>
+            <li style="margin-top: 0.75rem;">
+              <span class="pill pill-green">DERIVADO</span> <strong>origin_lat, origin_lng, radius_m</strong><br/>
+              <span style="color: var(--text-muted)">A posição derivada de uma tag ranged: o círculo em volta do gateway que a mediu. Calculado na view e <strong>nunca gravado</strong> — um palpite em coluna de posição seria indistinguível de um fix medido.</span>
+            </li>
+            <li style="margin-top: 0.75rem;">
+              <span class="pill pill-purple">RLS</span> <strong>security_invoker = on</strong><br/>
+              <span style="color: var(--text-muted)">A view aplica o RLS do papel que consulta, não o de quem a criou.</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="sub-card">
+          <h3>Funções RPC (Security Definer)</h3>
+          <ul style="list-style: none; padding-left: 0; font-size: 0.9rem; line-height: 1.8;">
+            <li>
+              <span class="pill pill-green">RPC</span> <strong>ingest(key, payload)</strong><br/>
+              <span style="color: var(--text-muted)">O único caminho de escrita. Valida a chave (hash SHA-256), faz upsert do dispositivo e insere a leitura. Substituiu <code>ingest_lora_packet</code>, <code>ingest_lora_gateway_status</code> e <code>ingest_cs_ranging</code> — as três só diferiam em quais colunas liam. Concedida a <code>anon</code> e <code>service_role</code>.</span>
+            </li>
+            <li style="margin-top: 0.75rem;">
+              <span class="pill pill-purple">RPC</span> <strong>register_device(id, kind, link, board_model, label)</strong><br/>
+              <span style="color: var(--text-muted)">Emite a chave de ingestão e a devolve <strong>uma única vez</strong> — só o hash fica guardado. Re-executar com o mesmo <code>device_id</code> rotaciona a chave. Concedida apenas a <code>service_role</code>: um papel capaz de emitir chaves tornaria a chave inútil.</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      periplus &bull; Visualizador de Diagrama da Base de Dados &bull; Gerado com Mermaid.js
+    </footer>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#0b1329',
+        primaryColor: '#38bdf8',
+        primaryTextColor: '#f8fafc',
+        primaryBorderColor: '#0284c7',
+        lineColor: '#60a5fa',
+        secondaryColor: '#818cf8',
+        tertiaryColor: '#1e293b'
+      },
+      er: {
+        useMaxWidth: true
+      },
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis'
+      }
+    });
+  </script>
+</body>
+</html>

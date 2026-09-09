@@ -5,3 +5,4 @@ Este diretório documenta a estrutura lógica do sistema, abrangendo desde a mod
 ## Conteúdos
 
 *   **[Arquitetura do Sistema](file:///Users/rynalde/Documents/GitHub/EMAP/EMAP/software/system_architecture.md)**: Visão geral da comunicação entre Tags, Gateways, Servidor de Banco de Dados e Interfaces de Usuário.
+*   **[Implementação de Referência — periplus](implementation.md)**: MVP funcional em [`apps/periplus/`](../apps/periplus/README.md) — firmware das placas (LoRa, BLE Channel Sounding, celular), backend Supabase, bridge serial e documentação técnica de bring-up.

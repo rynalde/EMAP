@@ -1,0 +1,58 @@
+#
+# xiao-cs-gateway configuration.
+#
+
+menu "Channel Sounding gateway"
+
+config CS_GATEWAY_ID
+	string "Gateway identifier"
+	default "CSGW01"
+	help
+	  Reported in every serial line, mirroring GATEWAY_ID in the T-Echo
+	  gateway's config.h. Note this is a label only — the bridge authenticates
+	  to Supabase with the gateway key in its own .env, not with this value.
+
+config CS_GATEWAY_FW_VERSION
+	string "Gateway firmware version"
+	default "cs-0.1.0"
+	help
+	  Reported upstream so a distance in the database can be traced back to
+	  the firmware that produced it.
+
+config CS_GATEWAY_RANGING_DWELL_MS
+	int "Milliseconds to range each tag before moving to the next"
+	default 4000
+	help
+	  With several tags in range this is what bounds how long any one of them
+	  can hold the radio. Lower it for fresher distances across many tags,
+	  raise it for a longer median window and steadier numbers on few tags.
+
+config CS_GATEWAY_REPORT_MIN_MS
+	int "Minimum milliseconds between reported observations for one tag"
+	default 1000
+	help
+	  Channel Sounding produces fresh estimates at roughly 10 Hz. Reporting
+	  every one of them would write around 860k rows per tag per day for no
+	  extra information, since they all come from the same median window.
+	  This paces the output the way the T-Beam tag paces itself with
+	  SEND_INTERVAL_MS. Lower it if you need faster-moving distances.
+
+config CS_GATEWAY_SCAN_WINDOW_MS
+	int "Milliseconds to scan for tags between ranging sessions"
+	default 2000
+	help
+	  The radio cannot scan and range at the same time, so the two take turns.
+	  This is the share given to discovering tags and refreshing their
+	  addresses after a randomisation.
+
+config CS_GATEWAY_STATUS_MS
+	int "Milliseconds between gateway status heartbeats"
+	default 30000
+	help
+	  A gateway with no tags in range is a normal state, not a fault, so it
+	  reports that it is alive on a timer regardless of tag traffic. Mirrors
+	  GATEWAY_STATUS_MS in the T-Echo gateway.
+
+endmenu
+
+source "Kconfig.zephyr"

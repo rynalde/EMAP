@@ -39,6 +39,16 @@ Sem a chave, o mapa mostra somente posições aproximadas dos berços de navios 
 
 A conexão WebSocket AIS requer um processo Node.js persistente. Para múltiplas instâncias ou hospedagem serverless, use um coletor persistente e armazenamento compartilhado. Reiniciar o processo limpa o cache e aguarda novas mensagens.
 
+## Publicar na Vercel
+
+O diretório raiz do projeto na Vercel é `apps/itaqui-digital`. O arquivo `vercel.json` já define o framework, a região `gru1` (São Paulo), o limite de 20 segundos para as rotas em `src/app/api` — acima dos 12 segundos de espera pelas fontes externas — e ignora o build dos commits que não tocam este diretório.
+
+Nenhuma variável de ambiente é obrigatória. Mapa, clima, marés e programação EMAP funcionam somente com as fontes públicas.
+
+**Não configure `AISSTREAM_API_KEY` na Vercel.** A integração AIS depende de um WebSocket persistente e de memória compartilhada entre requisições, o que não existe em funções serverless: cada instância reconecta do zero e devolve a lista vazia. Para posições AIS reais, mantenha um coletor persistente próprio, conforme [Ativar posições AIS](#ativar-posições-ais).
+
+O `output: "standalone"` continua ativo fora da Vercel, para hospedagem própria e imagens Docker.
+
 ## Origem dos dados
 
 | Informação                   | Fonte                                        | Observação                                  |

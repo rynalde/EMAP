@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["gru1"],
+  "functions": {
+    "src/app/api/**/*": {
+      "maxDuration": 20
+    }
+  },
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./"
+}

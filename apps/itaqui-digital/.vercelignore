@@ -1,0 +1,5 @@
+docs/
+scripts/
+tests/
+test-results/
+playwright-report/

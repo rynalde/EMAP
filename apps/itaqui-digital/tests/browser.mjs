@@ -172,6 +172,58 @@ try {
   );
   await offline.close();
   console.log("PASS: visible weather outage and retry");
+  // Vista 3D: montagem da cena, navios da programação, foco, seleção e layout mobile.
+  const view3d = await context.newPage();
+  const errors3d = [];
+  view3d.on("pageerror", (e) => errors3d.push(e.message));
+  await view3d.setViewportSize({ width: 1512, height: 982 });
+  await view3d.goto(base + "/3d");
+  await view3d.locator(".p3d-stage canvas").waitFor({ timeout: 60000 });
+  await view3d
+    .getByText("Construindo o porto em 3D…")
+    .waitFor({ state: "hidden", timeout: 60000 });
+  assert.ok(
+    await view3d.evaluate(
+      () => performance.getEntriesByName("port3d:build").length === 1,
+    ),
+  );
+  const berthed = new Set(
+    port.vessels
+      .filter((v) => v.positionSource === "berth" && !v.stale)
+      .map((v) => v.berth),
+  ).size;
+  await view3d.waitForFunction(
+    (n) => document.querySelectorAll(".port3d-label.ship").length === n,
+    berthed,
+  );
+  if (!port.stale)
+    await view3d
+      .locator(".p3d-status", { hasText: `${berthed} navio` })
+      .waitFor();
+  await view3d.screenshot({ path: "test-results/3d-overview.png" });
+  await view3d
+    .getByRole("button", { name: "Navios ilustrativos nos berços livres" })
+    .click();
+  // Todos os nove berços passam a ter navio (reais + ilustrativos).
+  await view3d.waitForFunction(
+    () => document.querySelectorAll(".port3d-label.ship").length === 9,
+  );
+  await view3d.locator(".port3d-label.ship.illustrative").first().click();
+  await view3d.getByText("NAVIO ILUSTRATIVO").waitFor();
+  await view3d.locator(".p3d-jump button", { hasText: /^101$/ }).click();
+  await view3d.waitForTimeout(2200);
+  await view3d.screenshot({ path: "test-results/3d-berth.png" });
+  await view3d.setViewportSize({ width: 390, height: 844 });
+  await view3d.waitForTimeout(600);
+  assert.ok(
+    await view3d.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  );
+  await view3d.screenshot({ path: "test-results/3d-mobile.png" });
+  assert.deepEqual(errors3d, []);
+  await view3d.close();
+  console.log("PASS: 3D scene, EMAP ships, illustrative fill, focus, mobile");
 } finally {
   await browser.close();
 }

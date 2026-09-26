@@ -1,6 +1,6 @@
 # Itaqui Digital
 
-Mapa interativo **2D** do Porto do Itaqui, em São Luís (MA), com Next.js, React e MapLibre GL JS. Interface em português, adaptada para desktop e celular.
+Mapa interativo **2D** do Porto do Itaqui, em São Luís (MA), com Next.js, React e MapLibre GL JS, e uma **vista 3D low-poly** do porto em three.js. Interface em português, adaptada para desktop e celular.
 
 ## Executar
 
@@ -24,6 +24,23 @@ Abra [localhost:3000](http://localhost:3000). Para produção, execute `npm run 
 - Programação pública EMAP, consultada a cada 5 minutos, com navios atracados, fundeados e esperados.
 - Documentos e páginas oficiais do porto acessíveis pelo painel de fontes.
 - Integração AISStream preparada no servidor, sem expor a chave ao navegador.
+
+## Vista 3D
+
+Abra [localhost:3000/3d](http://localhost:3000/3d) ou use o botão **3D** no cabeçalho do mapa. A cena segue o estilo low-poly de pacotes portuários comerciais (cores chapadas, cais de concreto, contêineres coloridos, guindastes amarelos, azuis e verdes), mas todos os modelos são gerados em código, sem assets de terceiros.
+
+| Elemento                                                                          | Origem                                                                                                                       |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Linha de costa, perímetro, vias, ferrovias, edificações e tanques                 | OpenStreetMap (os mesmos arquivos de `public/data`)                                                                          |
+| Berços                                                                            | Referências EMAP; a face do cais é alinhada à linha de costa do OSM                                                          |
+| Navios atracados                                                                  | Programação EMAP, com a mesma regra do mapa 2D: só berço conhecido e registro de até 7 dias                                  |
+| Guindastes, contêineres, pátios, silos, tanques extras, correia, dutos e veículos | Ilustrativos, distribuídos pelas áreas livres de cada zona funcional (contêineres ao sul, TEGRAM ao norte, tancagem a leste) |
+
+O tipo de cada navio é inferido da carga e não reproduz a aparência real da embarcação. O botão de navio preenche os berços livres com navios **ilustrativos**, identificados como tal no rótulo e nos detalhes. O fechamento do continente a leste, fora do recorte do OSM, é aproximado.
+
+Arraste para girar, use o botão direito ou dois dedos para deslocar e role para aproximar. Os atalhos na base aproximam cada berço, o TEGRAM e o parque de tancagem; clique em um navio para ver nome, carga e data do registro EMAP.
+
+O código fica em `src/lib/port3d/`: `geo.ts` (projeção local em metros), `layout.ts` (costa, berços e posição dos navios), `kit.ts` (peças com cor por vértice fundidas em poucas malhas), `models.ts` (modelos procedurais) e `scene.ts` (montagem, câmera e interação).
 
 ## Ativar posições AIS
 
@@ -84,6 +101,6 @@ npm run build
 npm run test:browser
 ```
 
-Os testes cobrem extração da programação, validade das posições e mensagens AIS. A verificação no navegador cobre APIs, navegação 2D, camadas, busca, filtros de navios, detalhes, ajuda, falha do clima e layouts desktop e mobile. Capturas são gravadas em `test-results/`.
+Os testes cobrem extração da programação, validade das posições e mensagens AIS, além da projeção e do alinhamento dos berços da vista 3D. A verificação no navegador cobre APIs, navegação 2D, camadas, busca, filtros de navios, detalhes, ajuda, falha do clima, a vista 3D e layouts desktop e mobile. Capturas são gravadas em `test-results/`.
 
 Para testar outra instância: `TEST_BASE_URL=http://localhost:3001 npm run test:browser`.

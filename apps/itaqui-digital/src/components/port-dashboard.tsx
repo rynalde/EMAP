@@ -266,6 +266,15 @@ export function PortDashboard() {
           <span className="clock">
             {time || "--:--:--"} <small>BRT</small>
           </span>
+          <a
+            className="icon-button view3d-link"
+            href="/3d"
+            title="Vista 3D do porto"
+            aria-label="Vista 3D do porto"
+          >
+            <Box size={18} />
+            <span>3D</span>
+          </a>
           <button
             className="icon-button"
             title="Como navegar"

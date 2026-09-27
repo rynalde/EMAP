@@ -1011,10 +1011,20 @@ export function createPortScene(
       seaView("105", 230, -40, 110),
       seaView("106", 210, 40, 95),
       seaView("108", 300, 160, 160),
-      placeView(tegram, [-420, 330, 180]),
-      placeView(tegram, [120, 260, 380]),
-      placeView([-44.3615, -2.5745], [-260, 230, 300]),
-      placeView([-44.3654, -2.5793], [-330, 260, 260]),
+      // Sobe sobre o píer 108 virando para o TEGRAM e cruza o manguezal alto.
+      [
+        seaView("108", 300, 160, 160)[0]
+          .clone()
+          .add(new THREE.Vector3(0, 220, 0)),
+        placeView(tegram, [0, 0, 0])[1],
+      ] as const,
+      placeView(tegram, [-760, 430, 330]),
+      placeView(tegram, [-400, 320, 170]),
+      placeView(tegram, [140, 280, 360]),
+      // Tancagem vista do oeste e retroárea sul vista do mar, sem encarar a mata.
+      placeView([-44.3625, -2.5728], [-380, 300, 160]),
+      placeView([-44.3645, -2.576], [-420, 320, 60]),
+      placeView([-44.366, -2.579], [-520, 330, 120]),
       [home.position.clone(), home.target.clone()] as const,
     ];
     tour = {

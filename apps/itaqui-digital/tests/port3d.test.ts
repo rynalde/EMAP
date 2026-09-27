@@ -177,3 +177,20 @@ test("road smoothing keeps ends and junctions and builds upward-facing strips", 
   const marks = [...stations(s, 10, 5)];
   assert.ok(marks.length >= 12 && marks.length <= 16, `${marks.length} marks`);
 });
+
+test("tour easing is continuous, monotonic and ends where it starts moving", async () => {
+  const { tourEase } = await import("../src/lib/port3d/geo");
+  assert.equal(tourEase(0), 0);
+  assert.equal(tourEase(1), 1);
+  let prev = 0,
+    maxStep = 0;
+  const n = 1500;
+  for (let i = 1; i <= n; i++) {
+    const e = tourEase(i / n);
+    assert.ok(e >= prev, "monotonic");
+    maxStep = Math.max(maxStep, e - prev);
+    prev = e;
+  }
+  // Nenhum quadro avança mais que a velocidade de cruzeiro (sem saltos).
+  assert.ok(maxStep <= (1 / n / (1 - 0.06)) * 1.001, `step ${maxStep}`);
+});

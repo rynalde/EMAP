@@ -179,3 +179,16 @@ export function polygonArea(ring: XZ[]) {
     a += (ring[j].x + ring[i].x) * (ring[j].z - ring[i].z);
   return Math.abs(a / 2);
 }
+
+/**
+ * Progresso do sobrevoo: acelera e freia nos primeiros e últimos 6% e mantém
+ * velocidade constante no meio, sem saltos (contínua na posição e na velocidade).
+ */
+export function tourEase(u: number, a = 0.06) {
+  const k = 1 / (2 * a * (1 - a));
+  if (u <= 0) return 0;
+  if (u >= 1) return 1;
+  if (u < a) return u * u * k;
+  if (u > 1 - a) return 1 - (1 - u) * (1 - u) * k;
+  return (u - a / 2) / (1 - a);
+}

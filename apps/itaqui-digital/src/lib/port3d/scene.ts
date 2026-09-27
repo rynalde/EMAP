@@ -16,6 +16,7 @@ import {
   pointInPolygon,
   polygonArea,
   rayHit,
+  tourEase,
   polylineLength,
   project,
   sampleAlong,
@@ -1107,15 +1108,11 @@ export function createPortScene(
       }
     if (tour) {
       const u = Math.min(1, (performance.now() - tour.start) / tour.duration);
-      // Arranque e chegada suaves; no meio a velocidade é constante por trecho.
-      const e =
-        u < 0.04
-          ? (u * u) / 0.08
-          : u > 0.96
-            ? 1 - ((1 - u) * (1 - u)) / 0.08
-            : u;
-      camera.position.copy(tour.pos.getPoint(e));
-      controls.target.copy(tour.look.getPoint(e));
+      camera.position.copy(tour.pos.getPointAt(tourEase(u)));
+      // O alvo segue o mesmo trecho da curva em que a câmera está.
+      controls.target.copy(
+        tour.look.getPoint(tour.pos.getUtoTmapping(tourEase(u), 0)),
+      );
       if (u >= 1) stopTour();
     }
     if (tween) {

@@ -12,13 +12,13 @@ import { getVesselModelInfo } from "@/lib/vessel-model-info";
 import {
   distanceToPolyline,
   headingToRotationY,
-  headingVector,
   orientedBox,
   pointInPolygon,
   polygonArea,
   polylineLength,
   project,
   sampleAlong,
+  unproject,
   type XZ,
 } from "./geo";
 import {
@@ -39,6 +39,15 @@ import {
   type BerthLayout,
 } from "./layout";
 import * as M from "./models";
+import { REFERENCE } from "./reference";
+import {
+  LC,
+  LC_COLOR,
+  classAt,
+  isVegetation,
+  terrainGeometry,
+  type LandCover,
+} from "./terrain";
 
 export type SceneSelection =
   | {
@@ -55,6 +64,8 @@ export type SceneSelection =
 export type PortSceneInput = {
   boundary: Feature<Geometry>;
   cartography: FeatureCollection<Geometry>;
+  /** Cobertura do solo ESA WorldCover; sem ela, o entorno fica com a cor padrão. */
+  landcover?: LandCover | null;
 };
 
 export type PortSceneEvents = {
@@ -79,8 +90,8 @@ const QUAY_EQUIPMENT: Record<string, ("mhc" | "portal" | "loader" | "arms")[]> =
     "103": ["loader", "loader"],
     "104": ["arms"],
     "105": ["portal", "loader"],
-    "106": ["arms", "arms"],
-    "108": ["arms", "arms"],
+    "106": ["arms"],
+    "108": ["arms"],
   };
 
 const ILLUSTRATIVE_KIND: Record<string, M.ShipKind> = {
@@ -109,48 +120,6 @@ function lines(geometry: Geometry): Position[][] {
   if (geometry.type === "LineString") return [geometry.coordinates];
   if (geometry.type === "MultiLineString") return geometry.coordinates;
   return [];
-}
-
-/** Interseção de um segmento com um retângulo expandido (Liang–Barsky), em coordenadas locais. */
-function segmentHitsRect(
-  a: XZ,
-  b: XZ,
-  cx: number,
-  cz: number,
-  cos: number,
-  sin: number,
-  hu: number,
-  hv: number,
-) {
-  const toLocal = (p: XZ) => {
-    const dx = p.x - cx,
-      dz = p.z - cz;
-    return [dx * cos + dz * sin, -dx * sin + dz * cos];
-  };
-  const [ax, az] = toLocal(a),
-    [bx, bz] = toLocal(b);
-  let t0 = 0,
-    t1 = 1;
-  const dx = bx - ax,
-    dz = bz - az;
-  const clip = (p: number, q: number) => {
-    if (p === 0) return q >= 0;
-    const t = q / p;
-    if (p < 0) {
-      if (t > t1) return false;
-      if (t > t0) t0 = t;
-    } else {
-      if (t < t0) return false;
-      if (t < t1) t1 = t;
-    }
-    return true;
-  };
-  return (
-    clip(-dx, ax + hu) &&
-    clip(dx, hu - ax) &&
-    clip(-dz, az + hv) &&
-    clip(dz, hv - az)
-  );
 }
 
 export function createPortScene(
@@ -382,7 +351,12 @@ export function createPortScene(
     walls.dispose();
 
     const top = new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
-    const tex = groundTexture(harbour, small ? 2048 : 4096);
+    const tex = groundTexture(
+      harbour,
+      land,
+      small ? 2048 : 4096,
+      input.landcover,
+    );
     const pos = top.getAttribute("position");
     const uv = new Float32Array(pos.count * 2);
     for (let i = 0; i < pos.count; i++) {
@@ -401,10 +375,35 @@ export function createPortScene(
     disposables.push(top, topMaterial, tex.texture);
   }
 
+  // ---------- Relevo e vegetação do entorno (ESA WorldCover) ----------
+  const jettyBerths = new Set(REFERENCE.jetties.flatMap((j) => j.berths));
+  const jettyLines = REFERENCE.jetties.map((j) => j.path.map(project));
+  if (input.landcover) {
+    // Lâmina d'água livre diante dos berços e sob as pontes de acesso aos píeres.
+    const keepWater = (p: XZ) => {
+      if (pointInPolygon(p, land)) return false;
+      for (const b of berths) {
+        const dx = p.x - b.quay.x,
+          dz = p.z - b.quay.z;
+        const t = dx * b.along.x + dz * b.along.z,
+          n = dx * b.normal.x + dz * b.normal.z;
+        if (Math.abs(t) < b.length / 2 + 70 && n < 8 && n > -120) return true;
+      }
+      return jettyLines.some((l) => distanceToPolyline(p, l) < 40);
+    };
+    const terrain = terrainGeometry(input.landcover, small ? 3 : 2, keepWater);
+    statics.addGeometry(terrain);
+    terrain.dispose();
+  }
+
   // ---------- Cais: aventais, faixas de borda, defensas e cabeços ----------
-  const quayLines: Line[] = [];
   for (const b of berths) {
     const ry = headingToRotationY(b.heading);
+    if (jettyBerths.has(b.id)) {
+      jettyBerth(root, b, ry);
+      equip(b);
+      continue;
+    }
     const L = b.length + 36;
     const apron = 32;
     const f = root.sub(
@@ -437,12 +436,12 @@ export function createPortScene(
     edge.box(L, 0.04, 0.3, C.marking, 0, 0.02, 21);
     for (let x = -L / 2 + 20; x < L / 2 - 10; x += 55)
       M.lightPole(edge, x, 27, 24);
-    quayLines.push([
-      { x: b.quay.x - b.along.x * (L / 2), z: b.quay.z - b.along.z * (L / 2) },
-      { x: b.quay.x + b.along.x * (L / 2), z: b.quay.z + b.along.z * (L / 2) },
-    ]);
 
-    // Equipamentos: lado do mar do referencial local (+X) voltado para o navio.
+    equip(b);
+  }
+
+  // Equipamentos: lado do mar do referencial local (+X) voltado para o navio.
+  function equip(b: BerthLayout) {
     const seaward = Math.atan2(b.normal.z, -b.normal.x);
     const kit = QUAY_EQUIPMENT[b.id] ?? [];
     kit.forEach((item, i) => {
@@ -519,6 +518,10 @@ export function createPortScene(
   }
 
   // ---------- Edificações do OSM ----------
+  const refTanks = REFERENCE.tanks.map((t) => ({
+    ...t,
+    p: project([t.lon, t.lat]),
+  }));
   const obstacles: { c: XZ; radius: number }[] = [];
   for (const ring of buildings) {
     const box = orientedBox(ring);
@@ -539,254 +542,91 @@ export function createPortScene(
       { x: 0, z: 0 },
     );
     const radius = Math.sqrt(polygonArea(ring) / Math.PI);
+    if (refTanks.some((t) => Math.hypot(t.p.x - c.x, t.p.z - c.z) < radius + 6))
+      continue;
     M.storageTank(g.sub(c.x, 0, c.z), radius, radius * 1.1);
     obstacles.push({ c, radius: radius + 6 });
   }
 
-  // ---------- Correia do TEGRAM e dutos até os píeres de líquidos (traçados ilustrativos) ----------
   const place = (id: string) =>
     project(PLACES.find((p) => p.id === id)!.coordinates);
-  const berth = (id: string) => berths.find((b) => b.id === id)!;
   const inland = (b: BerthLayout, d: number, t = 0): XZ => ({
     x: b.quay.x + b.normal.x * d + b.along.x * t,
     z: b.quay.z + b.normal.z * d + b.along.z * t,
   });
-  const extraCorridors: Line[] = [];
-  const tegram = place("tegram"),
-    liquids = place("liquidos");
-  const b103 = berth("103"),
-    b104 = berth("104"),
-    b105 = berth("105"),
-    b106 = berth("106"),
-    b108 = berth("108");
-  const conveyorPath: Line = [
-    { x: tegram.x - 40, z: tegram.z + 60 },
-    { x: tegram.x - 160, z: tegram.z + 520 },
-    inland(b103, 24, 45),
-  ];
-  for (let i = 1; i < conveyorPath.length; i++)
-    M.conveyor(
-      g,
-      [conveyorPath[i - 1].x, conveyorPath[i - 1].z],
-      [conveyorPath[i].x, conveyorPath[i].z],
-      13,
-    );
-  // Dutos seguem pelo píer, do berço 104 até o 108.
-  const pipePath: Line = [
-    inland(b104, 26, 40),
-    inland(b105, 19, 60),
-    inland(b106, 19, 0),
-    inland(b108, 19, 0),
-  ];
-  for (let i = 1; i < pipePath.length; i++)
-    M.pipeRack(
-      g,
-      [pipePath[i - 1].x, pipePath[i - 1].z],
-      [pipePath[i].x, pipePath[i].z],
-    );
-  extraCorridors.push(conveyorPath, pipePath);
-
-  // ---------- Pátios: preenchimento em três escalas de células livres ----------
-  const axis = headingVector(350),
-    cos = axis.x,
-    sin = axis.z;
-  const blockers: { line: Line; margin: number }[] = [
-    ...roads.map((x) => ({ line: x.line, margin: x.width / 2 + 1.5 })),
-    ...rails.map((line) => ({ line, margin: 3.5 })),
-    ...quayLines.map((line) => ({ line, margin: 36 })),
-    ...extraCorridors.map((line) => ({ line, margin: 5 })),
-  ];
-  const inside = (p: XZ) =>
-    pointInPolygon(p, harbour) && pointInPolygon(p, land);
-  let minU = Infinity,
-    maxU = -Infinity,
-    minV = Infinity,
-    maxV = -Infinity;
-  for (const p of harbour) {
-    const u = p.x * cos + p.z * sin,
-      v = -p.x * sin + p.z * cos;
-    minU = Math.min(minU, u);
-    maxU = Math.max(maxU, u);
-    minV = Math.min(minV, v);
-    maxV = Math.max(maxV, v);
-  }
-  const cellAngle = -Math.atan2(sin, cos);
-  const tegramDist = (p: XZ) => Math.hypot(p.x - tegram.x, p.z - tegram.z);
+  const liquids = place("liquidos");
   const liquidDist = (p: XZ) => Math.hypot(p.x - liquids.x, p.z - liquids.z);
-  const southZ = project([-44.3668, -2.5795]).z;
-  const placed: { u: number; v: number; hu: number; hv: number }[] = [];
-  const free = (u: number, v: number, U: number, V: number) => {
-    if (
-      placed.some(
-        (p) =>
-          Math.abs(p.u - u) < p.hu + U / 2 + 3 &&
-          Math.abs(p.v - v) < p.hv + V / 2 + 3,
-      )
-    )
-      return null;
-    const c = { x: u * cos - v * sin, z: u * sin + v * cos };
-    for (const su of [-0.5, 0, 0.5])
-      for (const sv of [-0.5, 0, 0.5])
-        if (
-          !inside({
-            x: c.x + su * U * cos - sv * V * sin,
-            z: c.z + su * U * sin + sv * V * cos,
-          })
-        )
-          return null;
-    if (
-      obstacles.some(
-        (o) =>
-          Math.hypot(o.c.x - c.x, o.c.z - c.z) <
-          o.radius + Math.max(U, V) / 2 + 4,
-      )
-    )
-      return null;
-    for (const { line, margin } of blockers)
-      for (let i = 1; i < line.length; i++)
-        if (
-          segmentHitsRect(
-            line[i - 1],
-            line[i],
-            c.x,
-            c.z,
-            cos,
-            sin,
-            U / 2 + margin,
-            V / 2 + margin,
-          )
-        )
-          return null;
-    placed.push({ u, v, hu: U / 2, hv: V / 2 });
-    return c;
-  };
-  const scales = [
-    { U: 66, V: 42 },
-    { U: 40, V: 26 },
-    { U: 26, V: 15 },
-  ];
-  scales.forEach(({ U, V }, level) => {
-    for (let u = minU + U / 2; u < maxU; u += U / 2)
-      for (let v = minV + V / 2; v < maxV; v += V / 2) {
-        const c = free(u, v, U, V);
-        if (!c) continue;
-        const f = g.sub(c.x, 0, c.z, cellAngle);
-        const roll = r();
-        const tank = liquidDist(c) < 340,
-          grain = tegramDist(c) < 420,
-          south = c.z > southZ;
-        if (level === 0) {
-          if (tank) {
-            M.bundWall(f, U - 2, V - 2);
-            const tr = 11 + r() * 3;
-            M.storageTank(
-              f.sub(-15, 0, 0),
-              tr,
-              13 + r() * 5,
-              tankColor(r),
-              tankBand(r),
-            );
-            M.storageTank(
-              f.sub(15, 0, 0),
-              tr,
-              13 + r() * 5,
-              tankColor(r),
-              tankBand(r),
-            );
-          } else if (grain) {
-            if (roll < 0.7)
-              M.archWarehouse(f, U - 6, V - 8, C.wallBlue, C.roof);
-            else
-              for (let i = 0; i < 4; i++)
-                M.silo(f.sub(-22 + i * 14.5, 0, 0), 6, 26);
-          } else if (south || roll < 0.3) {
-            M.containerBlock(f.sub(0, 0, -6), 6, 4, 4, r);
-            if (roll < 0.55)
-              M.rtgCrane(
-                f.sub(-8 + r() * 16, 0, -6),
-                roll < 0.3 ? C.white : C.yellow,
-              );
-            else M.reachStacker(f.sub(-20, 0, 14), roll < 0.8 ? C.blue : C.red);
-            M.lightPole(f, U / 2 - 1, V / 2 - 1, 24);
-          } else if (roll < 0.62) {
-            M.gableWarehouse(
-              f,
-              U - 6,
-              V - 10,
-              12,
-              C.white,
-              roll < 0.46 ? C.wallBlue : C.red,
-            );
-          } else {
-            const color = [C.fertilizer, C.coal, C.ironOre, C.grain][
-              Math.floor(r() * 4)
-            ];
-            M.stockpile(f, U - 10, V - 12, 9 + r() * 5, color);
-            M.forklift(f.sub(U / 2 - 4, 0, V / 2 - 2), C.yellow);
-          }
-        } else if (level === 1) {
-          if (tank) {
-            M.bundWall(f, U - 2, V - 2);
-            M.storageTank(f.sub(-9, 0, 0), 8.5, 11, tankColor(r), tankBand(r));
-            M.storageTank(f.sub(10, 0, 0), 8.5, 11, tankColor(r), tankBand(r));
-          } else if (grain) {
-            if (roll < 0.5)
-              M.archWarehouse(f, U - 4, V - 6, C.wallBlue, C.roof);
-            else
-              for (let i = 0; i < 3; i++)
-                M.silo(f.sub(-12 + i * 12, 0, 0), 5, 22);
-          } else if (south || roll < 0.45) {
-            M.containerBlock(f, 5, 3, 3, r);
-            if (roll < 0.25) M.reachStacker(f.sub(0, 0, V / 2 - 1), C.blue);
-          } else if (roll < 0.7) {
-            M.gableWarehouse(
-              f,
-              U - 4,
-              V - 8,
-              9,
-              C.offWhite,
-              roll < 0.58 ? C.wallBlue : C.teal,
-            );
-          } else if (roll < 0.85) {
-            M.stockpile(
-              f,
-              U - 8,
-              V - 8,
-              7,
-              [C.fertilizer, C.coal, C.ironOre][Math.floor(r() * 3)],
-            );
-          } else {
-            M.office(f, U - 14, V - 10, 2, roll < 0.93 ? C.wallBlue : C.red);
-          }
-        } else {
-          if (tank) {
-            M.storageTank(f, 6, 8, tankColor(r), tankBand(r));
-          } else if (roll < 0.42) {
-            M.containerBlock(f, 4, 2, 3, r);
-          } else if (roll < 0.62) {
-            for (let i = 0; i < 2; i++)
-              M.truck(
-                f.sub(0, 0, -3.6 + i * 7.2),
-                [C.red, C.blue, C.white][Math.floor(r() * 3)],
-                r() > 0.4 ? CONTAINER_COLORS[Math.floor(r() * 6)] : null,
-              );
-          } else if (roll < 0.82) {
-            for (let x = -10; x <= 10; x += 2.6)
-              for (const z of [-3.5, 3.5])
-                if (r() > 0.25)
-                  M.car(
-                    f.sub(x, 0, z, Math.PI / 2),
-                    [C.white, C.offWhite, C.steel, C.red, C.blue, C.black][
-                      Math.floor(r() * 6)
-                    ],
-                  );
-          } else {
-            M.pallets(f, r, U - 2, V - 2);
-            M.forklift(f.sub(U / 2 - 3, 0, 0), C.yellow);
-          }
-        }
-      }
-  });
+
+  // ---------- Estruturas posicionadas pela imagem de satélite ----------
+  for (const b of REFERENCE.buildings) {
+    const p = project([b.lon, b.lat]);
+    const f = g.sub(p.x, 0, p.z, (b.angle * Math.PI) / 180);
+    if (b.style === "arch")
+      M.archWarehouse(f, b.length, b.width, b.wall, b.roof);
+    else if (b.style === "gable")
+      M.gableWarehouse(f, b.length, b.width, b.height, b.wall, b.wall, b.roof);
+    else {
+      f.box(b.length, b.height, b.width, b.wall);
+      f.box(b.length + 0.6, 0.6, b.width + 0.6, b.roof, 0, b.height, 0);
+    }
+  }
+  for (const t of refTanks) {
+    const f = g.sub(t.p.x, 0, t.p.z);
+    if (t.kind === "water") {
+      // Reservatório aberto: anel de concreto com lâmina escura.
+      f.cyl(t.r, 3.5, C.concreteDark, 0, 0, 0, 20);
+      f.cyl(t.r * 0.9, 0.1, "#2f4a3a", 0, 3.5, 0, 20);
+    } else
+      M.storageTank(
+        f,
+        t.r,
+        Math.min(22, Math.max(6, t.r * 1.15)),
+        TANK_COLOR[t.kind],
+        undefined,
+        TANK_COLOR[t.kind],
+      );
+  }
+  // Correias transportadoras e pontes sobre estacas: pilares partem do nível da água.
+  for (const c of REFERENCE.conveyors) {
+    const line = c.path.map(project);
+    for (let i = 1; i < line.length; i++)
+      M.conveyor(
+        root,
+        [line[i - 1].x, line[i - 1].z],
+        [line[i].x, line[i].z],
+        GROUND + c.height,
+      );
+  }
+  for (const j of REFERENCE.jetties) {
+    const line = j.path.map(project);
+    for (let i = 1; i < line.length; i++) {
+      const a = line[i - 1],
+        b = line[i],
+        len = Math.hypot(b.x - a.x, b.z - a.z);
+      const f = root.sub(a.x, 0, a.z, Math.atan2(-(b.z - a.z), b.x - a.x));
+      // Tabuleiro 15 cm acima do terrapleno, onde a ponte passa sobre o píer do OSM.
+      f.box(
+        len + j.width,
+        1.2,
+        j.width,
+        C.concreteLight,
+        len / 2,
+        GROUND - 1.05,
+        0,
+      );
+      for (let x = 0; x <= len; x += 14)
+        for (const z of [-j.width / 2 + 1, j.width / 2 - 1])
+          f.cyl(0.6, GROUND + 3, C.quayWall, x, -3, z, 8);
+      M.pipeRack(
+        f.sub(0, GROUND, 0),
+        [0, -j.width / 4],
+        [len, -j.width / 4],
+        1.6,
+      );
+      for (let x = 20; x < len; x += 60)
+        M.lightPole(f.sub(0, GROUND, 0), x, j.width / 2 - 0.5, 14);
+    }
+  }
 
   // ---------- Portaria no acesso terrestre ----------
   const gate = place("acesso");
@@ -833,27 +673,6 @@ export function createPortScene(
       else M.hopperWagon(f, i % 4 ? C.rust : C.steelDark);
     }
   });
-
-  // ---------- Vegetação no continente fora do porto ----------
-  // Maciços de mata: sementes aleatórias com árvores agrupadas ao redor.
-  for (let i = 0, placed = 0; i < 900 && placed < 1100; i++) {
-    const seed = {
-      x: center.x - 200 + (r() - 0.3) * 2800,
-      z: center.z + (r() - 0.5) * 2800,
-    };
-    const count = 3 + Math.floor(r() * 7);
-    for (let k = 0; k < count; k++) {
-      const p = { x: seed.x + (r() - 0.5) * 60, z: seed.z + (r() - 0.5) * 60 };
-      if (!pointInPolygon(p, land) || pointInPolygon(p, harbour)) continue;
-      if (
-        distanceToPolyline(p, land) < 14 ||
-        distanceToPolyline(p, harbour) < 8
-      )
-        continue;
-      M.tree(g.sub(p.x, 0, p.z, r() * 6), 0, 0, 0.6 + r() * 0.9, r);
-      placed++;
-    }
-  }
 
   const staticGroup = statics.build(materials, "estatico");
   performance.measure("port3d:build", "port3d:start");
@@ -1172,6 +991,70 @@ export function createPortScene(
   };
 }
 
+const TANK_COLOR: Record<string, string> = {
+  white: C.white,
+  beige: "#e8d2c2",
+  rust: "#a9644c",
+  gray: "#a3a8ab",
+};
+
+/**
+ * Berço em píer sobre estacas (106 e 108): plataforma de carregamento no centro e
+ * dolfins de atracação ao longo da face, ligados por passarelas.
+ */
+function jettyBerth(root: Frame, b: BerthLayout, ry: number) {
+  const pw = 26,
+    pl = 46;
+  const f = root.sub(
+    b.quay.x + (b.normal.x * pw) / 2,
+    0,
+    b.quay.z + (b.normal.z * pw) / 2,
+    ry,
+  );
+  // No 106 a plataforma é a cabeça do píer já desenhada pela costa do OSM.
+  if (!b.onCoast) {
+    f.box(pl, 1.6, pw, C.concreteLight, 0, GROUND - 1.45, 0);
+    for (let x = -pl / 2 + 3; x <= pl / 2 - 3; x += 8)
+      for (const z of [-pw / 2 + 2, 0, pw / 2 - 2])
+        f.cyl(0.8, GROUND + 3, C.quayWall, x, -3, z, 8);
+    const edge = f.sub(0, GROUND, -pw / 2);
+    for (let x = -pl / 2 + 1; x < pl / 2 - 1; x += 2.4)
+      edge.box(
+        1.2,
+        0.35,
+        0.6,
+        Math.round(x / 2.4) % 2 ? C.black : C.markingYellow,
+        x,
+        0,
+        0.5,
+      );
+  }
+  for (const t of [-0.45, -0.3, 0.3, 0.45]) {
+    const along = t * b.length;
+    const d = root.sub(
+      b.quay.x + b.along.x * along + b.normal.x * 4,
+      0,
+      b.quay.z + b.along.z * along + b.normal.z * 4,
+      ry,
+    );
+    d.box(8, GROUND + 6, 8, C.quayWall, 0, -6, 0);
+    d.box(8.4, 0.5, 8.4, C.concreteLight, 0, GROUND - 0.3, 0);
+    M.bollard(d, 0, 0, GROUND + 0.2);
+    d.box(3, 2.6, 0.8, C.black, 0, GROUND - 3, -4.3);
+    // Passarela até a plataforma.
+    const span = Math.abs(along) - pl / 2 - 4;
+    d.box(
+      span,
+      0.4,
+      1.4,
+      C.steel,
+      (Math.sign(-along) * (span + 8)) / 2,
+      GROUND + 1.2,
+      2,
+    );
+  }
+}
+
 /** Em telas em pé, abre o campo de visão para manter a mesma largura de cena. */
 const fovFor = (aspect: number) =>
   aspect >= 1 ? 34 : Math.min(62, 34 / Math.sqrt(Math.max(aspect, 0.3)));
@@ -1211,12 +1094,19 @@ function skyTexture() {
 }
 
 /** Textura do topo do terreno: vegetação fora do porto e concreto dentro do polígono do OSM. */
-function groundTexture(harbour: XZ[], size: number) {
+function groundTexture(
+  harbour: XZ[],
+  land: XZ[],
+  size: number,
+  landcover?: LandCover | null,
+) {
+  // Cobre todo o terreno quando há cobertura do solo; senão, só o porto com margem.
+  const extent = landcover ? land : harbour;
   const margin = 80;
-  const minX = Math.min(...harbour.map((p) => p.x)) - margin,
-    maxX = Math.max(...harbour.map((p) => p.x)) + margin,
-    minZ = Math.min(...harbour.map((p) => p.z)) - margin,
-    maxZ = Math.max(...harbour.map((p) => p.z)) + margin;
+  const minX = Math.min(...extent.map((p) => p.x)) - margin,
+    maxX = Math.max(...extent.map((p) => p.x)) + margin,
+    minZ = Math.min(...extent.map((p) => p.z)) - margin,
+    maxZ = Math.max(...extent.map((p) => p.z)) + margin;
   const width = maxX - minX,
     height = maxZ - minZ,
     scale = size / Math.max(width, height);
@@ -1242,6 +1132,41 @@ function groundTexture(harbour: XZ[], size: number) {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+  if (landcover) {
+    // Classes do WorldCover em células de 5 m, suavizadas ao ampliar: vegetação real
+    // dentro e fora do porto; o que não é vegetação dentro do porto vira pavimento.
+    const cell = 5,
+      cw = Math.ceil(width / cell),
+      ch = Math.ceil(height / cell);
+    const lcCanvas = document.createElement("canvas");
+    lcCanvas.width = cw;
+    lcCanvas.height = ch;
+    const lctx = lcCanvas.getContext("2d")!;
+    const img = lctx.createImageData(cw, ch);
+    const rgb = new THREE.Color();
+    for (let j = 0; j < ch; j++)
+      for (let i = 0; i < cw; i++) {
+        const p = { x: minX + (i + 0.5) * cell, z: minZ + (j + 0.5) * cell };
+        const [lon, lat] = unproject(p);
+        const c = classAt(landcover, lon, lat);
+        const inPort = pointInPolygon(p, harbour);
+        const hex =
+          inPort && !isVegetation(c)
+            ? C.concrete
+            : c === LC.water
+              ? C.land
+              : (LC_COLOR[c] ?? C.land);
+        rgb.set(hex).convertLinearToSRGB();
+        const k = (j * cw + i) * 4;
+        img.data[k] = Math.round(rgb.r * 255);
+        img.data[k + 1] = Math.round(rgb.g * 255);
+        img.data[k + 2] = Math.round(rgb.b * 255);
+        img.data[k + 3] = 255;
+      }
+    lctx.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(lcCanvas, 0, 0, canvas.width, canvas.height);
+  }
   const path = () => {
     ctx.beginPath();
     harbour.forEach((p, i) => {
@@ -1253,8 +1178,10 @@ function groundTexture(harbour: XZ[], size: number) {
     ctx.closePath();
   };
   path();
-  ctx.fillStyle = C.concrete;
-  ctx.fill();
+  if (!landcover) {
+    ctx.fillStyle = C.concrete;
+    ctx.fill();
+  }
   ctx.lineWidth = 3 * scale;
   ctx.strokeStyle = C.concreteDark;
   ctx.stroke();

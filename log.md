@@ -34,3 +34,8 @@ Este arquivo registra o histórico de atualizações estruturais e de conteúdo 
 - Geometria real: linha de costa, perímetro, vias, ferrovias, edificações e tanques do OpenStreetMap; face do cais de cada berço alinhada à costa mapeada.
 - Navios atracados da programação EMAP, com a mesma regra de validade do mapa 2D (berço conhecido e registro de até 7 dias); tipo do navio inferido da carga e identificado como ilustrativo.
 - Guindastes, pátios de contêineres, silos do TEGRAM, tanques adicionais, correia, dutos e veículos são cenografia ilustrativa, declarada na interface e no README.
+
+## [2026-09-27] - Vista 3D ajustada à imagem de satélite e à cobertura do solo
+- A vista `/3d` do [`itaqui-digital`](apps/itaqui-digital/README.md#estruturas-posicionadas-por-imagem-de-satélite) deixa de preencher o porto com pátios aleatórios e passa a posicionar as estruturas reais vistas na imagem Esri World Imagery (Vantor WorldView-3, 06/05/2023): os quatro armazéns do TEGRAM, os galpões vizinhos, o armazém de cobertura salmão, cerca de 130 tanques nos parques de tancagem, as correias da retroárea e a ponte de acesso com plataformas e dolfins dos berços 106 e 108.
+- Tanques detectados com o modelo NVIDIA LocateAnything-3B (licença para pesquisa acadêmica), executado localmente sobre recortes da imagem e revisado; demais estruturas lidas sobre a imagem com grade de coordenadas.
+- Entorno desenhado a partir do ESA WorldCover 10 m (2021, CC BY 4.0): manguezais, matas e áreas construídas, com dossel facetado e água livre diante dos berços.

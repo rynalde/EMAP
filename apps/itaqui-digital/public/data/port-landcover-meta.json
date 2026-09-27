@@ -1,0 +1,27 @@
+{
+ "source": "ESA WorldCover 10 m 2021 v200",
+ "license": "CC BY 4.0",
+ "attribution": "© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium",
+ "url": "https://esa-worldcover.org/",
+ "bounds": [
+  -44.4,
+  -2.6,
+  -44.33,
+  -2.54
+ ],
+ "width": 840,
+ "height": 720,
+ "classes": {
+  "10": "Cobertura arbórea",
+  "20": "Arbustos",
+  "30": "Vegetação herbácea",
+  "40": "Agricultura",
+  "50": "Área construída",
+  "60": "Solo exposto",
+  "80": "Água",
+  "90": "Área úmida herbácea",
+  "95": "Manguezal",
+  "100": "Musgos e líquens"
+ },
+ "boundsOrder": "west, south, east, north"
+}

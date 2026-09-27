@@ -216,14 +216,15 @@ export function gableWarehouse(
   height = 12,
   wall: string = C.white,
   band: string = C.wallBlue,
+  roof: string = C.roof,
 ) {
   f.box(length, height, width, wall, 0, 0, 0);
   f.box(length + 0.2, height * 0.35, width + 0.2, band, 0, 0, 0);
   f.gable(
     length + 1,
     width + 1.2,
-    Math.min(width * 0.18, 9),
-    C.roof,
+    Math.min(width * 0.2, 14),
+    roof,
     0,
     height,
     0,
@@ -232,17 +233,18 @@ export function gableWarehouse(
     f.box(6, 6, 0.3, C.steelDark, x, 0, width / 2 + 0.1);
     f.box(6, 6, 0.3, C.steelDark, x, 0, -width / 2 - 0.1);
   }
-  // Clarabóias ao longo da cumeeira.
-  for (let x = -length / 2 + 12; x < length / 2 - 8; x += 24)
-    f.box(
-      8,
-      0.3,
-      2,
-      "#a9d3e6",
-      x,
-      height + Math.min(width * 0.18, 9) * 0.55,
-      width * 0.2,
-    );
+  // Clarabóias ao longo da cumeeira (só nos telhados metálicos claros).
+  if (roof === C.roof)
+    for (let x = -length / 2 + 12; x < length / 2 - 8; x += 24)
+      f.box(
+        8,
+        0.3,
+        2,
+        "#a9d3e6",
+        x,
+        height + Math.min(width * 0.2, 14) * 0.55,
+        width * 0.2,
+      );
 }
 
 /** Prédio administrativo de poucos pavimentos. */
@@ -278,10 +280,11 @@ export function storageTank(
   h: number,
   color: string = C.white,
   band?: string,
+  roof: string = C.offWhite,
 ) {
   f.cyl(r, h, color, 0, 0, 0, 20);
   if (band) f.cyl(r * 1.01, h * 0.12, band, 0, h * 0.78, 0, 20);
-  f.cone(r * 1.01, r * 0.18, C.offWhite, 0, h, 0, 20);
+  f.cone(r * 1.01, r * 0.18, roof, 0, h, 0, 20);
   f.cyl(r * 1.02, 0.6, C.steel, 0, h * 0.5, 0, 20);
   // Escada helicoidal simplificada e bacia de contenção.
   f.strut([r, 0.5, 0], [r * 0.2, h, r * 0.98], 0.6, C.steelDark);

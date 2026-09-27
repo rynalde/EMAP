@@ -27,20 +27,32 @@ Abra [localhost:3000](http://localhost:3000). Para produção, execute `npm run 
 
 ## Vista 3D
 
-Abra [localhost:3000/3d](http://localhost:3000/3d) ou use o botão **3D** no cabeçalho do mapa. A cena segue o estilo low-poly de pacotes portuários comerciais (cores chapadas, cais de concreto, contêineres coloridos, guindastes amarelos, azuis e verdes), mas todos os modelos são gerados em código, sem assets de terceiros.
+Abra [localhost:3000/3d](http://localhost:3000/3d) ou use o botão **3D** no cabeçalho do mapa. A cena segue o estilo low-poly de pacotes portuários comerciais (cores chapadas, cais de concreto, guindastes amarelos, azuis e verdes), mas todos os modelos são gerados em código, sem assets de terceiros.
 
-| Elemento                                                                          | Origem                                                                                                                       |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Linha de costa, perímetro, vias, ferrovias, edificações e tanques                 | OpenStreetMap (os mesmos arquivos de `public/data`)                                                                          |
-| Berços                                                                            | Referências EMAP; a face do cais é alinhada à linha de costa do OSM                                                          |
-| Navios atracados                                                                  | Programação EMAP, com a mesma regra do mapa 2D: só berço conhecido e registro de até 7 dias                                  |
-| Guindastes, contêineres, pátios, silos, tanques extras, correia, dutos e veículos | Ilustrativos, distribuídos pelas áreas livres de cada zona funcional (contêineres ao sul, TEGRAM ao norte, tancagem a leste) |
+| Elemento                                                                             | Origem                                                                                                    |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Linha de costa, perímetro, vias e ferrovias                                          | OpenStreetMap (os mesmos arquivos de `public/data`)                                                       |
+| Vegetação, manguezais, solo exposto e áreas construídas do entorno                   | [ESA WorldCover](https://esa-worldcover.org/) 10 m (2021), em `public/data/port-landcover.png`            |
+| Tanques, armazéns do TEGRAM e demais galpões, correias e píeres dos berços 106 e 108 | Posicionados sobre imagem de satélite de 06/05/2023 (ver abaixo), em `src/lib/port3d/reference-data.json` |
+| Berços                                                                               | Referências EMAP; a face do cais é alinhada à linha de costa do OSM                                       |
+| Navios atracados                                                                     | Programação EMAP, com a mesma regra do mapa 2D: só berço conhecido e registro de até 7 dias               |
+| Guindastes, veículos, trens e modelos dos navios                                     | Ilustrativos                                                                                              |
 
 O tipo de cada navio é inferido da carga e não reproduz a aparência real da embarcação. O botão de navio preenche os berços livres com navios **ilustrativos**, identificados como tal no rótulo e nos detalhes. O fechamento do continente a leste, fora do recorte do OSM, é aproximado.
 
+### Estruturas posicionadas por imagem de satélite
+
+A referência é a imagem Esri World Imagery do porto (Vantor WorldView-3, 31 cm, capturada em 06/05/2023), a mesma camada de satélite do mapa 2D. Os tanques foram detectados com o modelo [NVIDIA LocateAnything-3B](https://huggingface.co/nvidia/LocateAnything-3B) (licença NVIDIA para pesquisa acadêmica, sem uso comercial), rodado localmente sobre recortes da imagem, e conferidos visualmente; reservatórios escuros e tanques não detectados foram marcados à mão. Armazéns, correias e píeres foram lidos sobre a imagem com grade de coordenadas. As posições têm erro de 5 a 10 m e as alturas são estimadas; não são levantamento topográfico nem cadastro oficial. Estruturas construídas depois de maio de 2023 não aparecem.
+
+A cobertura do solo do ESA WorldCover (CC BY 4.0) define as manchas de mata e manguezal, desenhadas como dossel facetado, e a cor do chão no entorno. Dentro do perímetro do porto, o que não é vegetação é desenhado como pavimento.
+
+Atribuições: © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium; imagem de referência Esri, Vantor; © contribuidores do OpenStreetMap.
+
+### Navegação e código
+
 Arraste para girar, use o botão direito ou dois dedos para deslocar e role para aproximar. Os atalhos na base aproximam cada berço, o TEGRAM e o parque de tancagem; clique em um navio para ver nome, carga e data do registro EMAP.
 
-O código fica em `src/lib/port3d/`: `geo.ts` (projeção local em metros), `layout.ts` (costa, berços e posição dos navios), `kit.ts` (peças com cor por vértice fundidas em poucas malhas), `models.ts` (modelos procedurais) e `scene.ts` (montagem, câmera e interação).
+O código fica em `src/lib/port3d/`: `geo.ts` (projeção local em metros), `layout.ts` (costa, berços e posição dos navios), `terrain.ts` (relevo e cores a partir do WorldCover), `reference.ts` (estruturas posicionadas pela imagem), `kit.ts` (peças com cor por vértice fundidas em poucas malhas), `models.ts` (modelos procedurais) e `scene.ts` (montagem, câmera e interação).
 
 ## Ativar posições AIS
 

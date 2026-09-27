@@ -72,13 +72,28 @@ export function Port3DView() {
   useEffect(() => {
     if (!host.current || !boundary.data || !cartography.data) return;
     let disposed = false;
-    import("@/lib/port3d/scene")
-      .then(({ createPortScene }) => {
+    Promise.all([
+      import("@/lib/port3d/scene"),
+      // Sem a cobertura do solo a cena ainda abre, só com o entorno em cor padrão.
+      import("@/lib/port3d/terrain")
+        .then(({ loadLandCover }) =>
+          loadLandCover(
+            "/data/port-landcover.png",
+            "/data/port-landcover-meta.json",
+          ),
+        )
+        .catch(() => null),
+    ])
+      .then(([{ createPortScene }, landcover]) => {
         if (disposed || !host.current) return;
         try {
           controller.current = createPortScene(
             host.current,
-            { boundary: boundary.data!, cartography: cartography.data! },
+            {
+              boundary: boundary.data!,
+              cartography: cartography.data!,
+              landcover,
+            },
             { onSelect: setSelection },
           );
           setState("ready");
@@ -251,9 +266,10 @@ export function Port3DView() {
 
       {showNote && !selection && (
         <p className="p3d-note">
-          Litoral, perímetro, vias, ferrovias, edificações e tanques vêm do
-          OpenStreetMap; berços e navios atracados, da EMAP. Guindastes,
-          contêineres, pátios, correia, dutos e veículos são ilustrativos.
+          Litoral, perímetro, vias e ferrovias do OpenStreetMap; vegetação e
+          manguezais do ESA WorldCover; tanques, armazéns, correias e píeres
+          posicionados por imagem de satélite de 2023; berços e navios atracados
+          da EMAP. Guindastes, veículos e modelos dos navios são ilustrativos.
           Arraste para girar, role para aproximar e clique nos navios.
         </p>
       )}

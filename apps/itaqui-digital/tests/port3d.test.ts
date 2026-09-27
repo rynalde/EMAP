@@ -125,3 +125,26 @@ test("only fresh EMAP berth assignments get a 3D ship", () => {
   assert.deepEqual([...map.keys()].sort(), ["103", "106"]);
   assert.equal(map.get("103")?.name, "A");
 });
+
+test("satellite-derived structures stand on land and reference real berths", async () => {
+  const { REFERENCE } = await import("../src/lib/port3d/reference");
+  const { BERTHS } = await import("../src/lib/port-data");
+  const land = landRing(cartography);
+  assert.ok(REFERENCE.tanks.length > 100, "tank farms were digitised");
+  for (const t of REFERENCE.tanks) {
+    assert.ok(t.r >= 3 && t.r <= 32, `tank radius ${t.r}`);
+    assert.ok(["white", "beige", "rust", "gray", "water"].includes(t.kind));
+    assert.ok(pointInPolygon(project([t.lon, t.lat]), land), "tank on land");
+  }
+  for (const b of REFERENCE.buildings) {
+    assert.ok(b.length >= b.width && b.width > 2, `${b.id} dimensions`);
+    assert.ok(pointInPolygon(project([b.lon, b.lat]), land), `${b.id} on land`);
+  }
+  const ids = new Set(BERTHS.map((b) => b.id));
+  for (const j of REFERENCE.jetties)
+    assert.ok(
+      j.berths.every((id) => ids.has(id)),
+      "jetty berths exist",
+    );
+  assert.match(REFERENCE.source.captured, /^\d{4}-\d{2}-\d{2}$/);
+});

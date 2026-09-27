@@ -283,21 +283,46 @@ export function createPortScene(
   const waterUniforms = { uTime: { value: 0 } };
   const waterMaterial = new THREE.MeshStandardMaterial({
     color: C.water,
-    roughness: 0.32,
+    roughness: 0.3,
     metalness: 0.08,
-    flatShading: true,
   });
+  // Ondulação suave: a malha oscila devagar e as normais das marolas são calculadas por
+  // pixel (em vez de facetas), com atenuação à distância para não cintilar.
   waterMaterial.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = waterUniforms.uTime;
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nuniform float uTime;")
+      .replace(
+        "#include <common>",
+        "#include <common>\nuniform float uTime;\nvarying vec2 vWater;",
+      )
       .replace(
         "#include <begin_vertex>",
         `#include <begin_vertex>
-        float w = sin(position.x * 0.045 + uTime * 0.8) * 0.35
-          + cos(position.y * 0.052 - uTime * 0.6) * 0.3
-          + sin((position.x + position.y) * 0.12 + uTime * 1.5) * 0.12;
-        transformed.z += w;`,
+        vWater = position.xy;
+        transformed.z += sin(position.x * 0.045 + uTime * 0.8) * 0.35
+          + cos(position.y * 0.052 - uTime * 0.6) * 0.3;`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nuniform float uTime;\nvarying vec2 vWater;",
+      )
+      .replace(
+        "#include <normal_fragment_begin>",
+        `#include <normal_fragment_begin>
+        {
+          vec2 p = vWater;
+          vec2 g = vec2(0.0);
+          vec2 d;
+          d = normalize(vec2(1.0, 0.35));  g += d * 0.045 * cos(dot(d, p) * 0.07 + uTime * 0.9);
+          d = normalize(vec2(-0.4, 1.0));  g += d * 0.04 * cos(dot(d, p) * 0.13 - uTime * 1.3);
+          d = normalize(vec2(0.8, -0.6));  g += d * 0.03 * cos(dot(d, p) * 0.31 + uTime * 1.9);
+          d = normalize(vec2(-0.9, -0.2)); g += d * 0.025 * cos(dot(d, p) * 0.57 - uTime * 2.4);
+          g *= clamp(1.0 - length(vViewPosition) / 2600.0, 0.15, 1.0);
+          // Plano girado -90° em X: normal local (x, y, z) vira (x, z, -y) no mundo.
+          vec3 local = normalize(vec3(-g, 1.0));
+          normal = normalize((viewMatrix * vec4(local.x, local.z, -local.y, 0.0)).xyz);
+        }`,
       );
   };
   const waterGeometry = new THREE.PlaneGeometry(7000, 7000, 150, 150);
@@ -336,7 +361,8 @@ export function createPortScene(
   });
   const farWater = new THREE.Mesh(farGeometry, farMaterial);
   farWater.rotation.x = -Math.PI / 2;
-  farWater.position.y = -0.6;
+  // Bem abaixo da ondulação (±0,65 m) do plano próximo, para não atravessá-lo.
+  farWater.position.y = -3;
   scene.add(water, farWater);
   disposables.push(waterGeometry, waterMaterial, farGeometry, farMaterial);
 

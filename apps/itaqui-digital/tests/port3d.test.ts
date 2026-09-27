@@ -75,14 +75,24 @@ test("berths line up with the OSM quay face and ships stay in the water", () => 
     ["99", "108"],
   );
   for (const b of berths) {
-    const quayDistance = Math.hypot(
-      b.quay.x - b.center.x,
-      b.quay.z - b.center.z,
-    );
-    assert.ok(
-      quayDistance > 5 && quayDistance < 70,
-      `${b.id}: ${quayDistance}`,
-    );
+    if (b.onCoast) {
+      const quayDistance = Math.hypot(
+        b.quay.x - b.center.x,
+        b.quay.z - b.center.z,
+      );
+      assert.ok(
+        quayDistance > 5 && quayDistance < 70,
+        `${b.id}: ${quayDistance}`,
+      );
+    } else {
+      // Sem costa mapeada, a face continua a do vizinho de mesmo rumo (100 e 106).
+      const n = berths.find(
+        (x) => x.onCoast && x.heading === b.heading && x.id !== b.id,
+      )!;
+      const offLine =
+        (b.quay.x - n.quay.x) * n.normal.x + (b.quay.z - n.quay.z) * n.normal.z;
+      assert.ok(Math.abs(offLine) < 1e-6, `${b.id} continues ${n.id}`);
+    }
     assert.ok(!pointInPolygon(b.center, land), `${b.id} center is at sea`);
     const pose = shipPose(b, 32);
     assert.ok(

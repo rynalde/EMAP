@@ -94,7 +94,7 @@ const DEFAULT_QUAY_OFFSET = 24;
 
 export function berthLayouts(land: XZ[]): BerthLayout[] {
   const segments = ringSegments(land);
-  return BERTHS.map((b) => {
+  const layouts = BERTHS.map((b) => {
     const heading = b.heading ?? 0;
     const along = headingVector(heading);
     const normal = headingVector(heading + 90);
@@ -112,6 +112,24 @@ export function berthLayouts(land: XZ[]): BerthLayout[] {
       normal,
       quay: { x: center.x + normal.x * d, z: center.z + normal.z * d },
       onCoast: hit !== null,
+    };
+  });
+  // Berços fora da costa mapeada prolongam a face do vizinho de mesmo rumo,
+  // para que o cais siga contínuo em vez de formar um degrau.
+  return layouts.map((b, i) => {
+    if (b.onCoast) return b;
+    const neighbour = [layouts[i - 1], layouts[i + 1]].find(
+      (n) => n?.onCoast && n.heading === b.heading,
+    );
+    if (!neighbour) return b;
+    const d =
+      (neighbour.quay.x - b.center.x) * b.normal.x +
+      (neighbour.quay.z - b.center.z) * b.normal.z;
+    // O centro de referência do 99 fica quase sobre essa linha; só descarta desvios absurdos.
+    if (Math.abs(d) > 70) return b;
+    return {
+      ...b,
+      quay: { x: b.center.x + b.normal.x * d, z: b.center.z + b.normal.z * d },
     };
   });
 }

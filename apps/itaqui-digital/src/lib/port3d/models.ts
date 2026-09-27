@@ -146,64 +146,6 @@ export function portalCrane(f: Frame, color: string, slew = 0) {
   top.box(2, 2, 2, C.yellowDark, tipX, 2.5, 0);
 }
 
-/** Portêiner (STS): pórtico alto com lança sobre o navio. Lado do mar em +X. */
-export function stsCrane(f: Frame, color: string, boomUp = false) {
-  const gauge = 30,
-    width = 22,
-    h = 40;
-  for (const sx of [-gauge / 2, gauge / 2])
-    for (const sz of [-width / 2, width / 2]) {
-      f.box(2, h, 2, color, sx, 0, sz);
-      f.box(4, 1.2, 3, C.steelDark, sx, 0, sz);
-    }
-  for (const sx of [-gauge / 2, gauge / 2]) {
-    f.box(2, 2, width + 2, color, sx, h - 2, 0);
-    f.box(1.4, 1.4, width, color, sx, 12, 0);
-    f.strut([sx, 13, -width / 2], [sx, h - 2, width / 2], 0.9, color);
-  }
-  for (const sz of [-width / 2, width / 2]) {
-    f.box(gauge, 1.5, 1.5, color, 0, 12, sz);
-    f.box(gauge + 2, 2.2, 2, color, 0, h, sz);
-  }
-  // Casa de máquinas e sala elétrica sobre o pórtico.
-  f.box(18, 5, 12, C.white, -gauge / 2 + 4, h + 2.2, 0);
-  f.box(4, 4, 12, C.red, -gauge / 2 - 6, h + 2.2, 0);
-  // Lança sobre a água e back-reach.
-  const out = 52,
-    back = 22;
-  const boom = boomUp
-    ? f.sub(gauge / 2, h + 4, 0, 0, 0, 1.2)
-    : f.sub(0, h + 4, 0);
-  const x0 = boomUp ? 0 : -gauge / 2 - back;
-  const len = boomUp ? out : gauge + back + out;
-  for (const sz of [-3.5, 3.5]) {
-    boom.beam(len, 2.2, 1.4, color, x0 + len / 2, 0, sz);
-    for (let i = 3; i < len - 2; i += 7)
-      boom.strut([x0 + i, -1, sz], [x0 + i + 3.5, 1, sz], 0.45, color);
-  }
-  for (let i = 0; i < len; i += 8)
-    boom.box(0.8, 0.8, 7, color, x0 + i, -0.4, 0);
-  // Mastro em A e estais.
-  f.strut([-2, h + 2, -6], [2, h + 22, 0], 1.2, color);
-  f.strut([-2, h + 2, 6], [2, h + 22, 0], 1.2, color);
-  if (!boomUp) {
-    f.strut(
-      [2, h + 22, 0],
-      [gauge / 2 + out * 0.55, h + 5, 0],
-      0.4,
-      C.steelDark,
-    );
-    f.strut([2, h + 22, 0], [gauge / 2 + out, h + 5, 0], 0.4, C.steelDark);
-    f.strut([2, h + 22, 0], [-gauge / 2 - back, h + 5, 0], 0.4, C.steelDark);
-    // Carro e spreader.
-    f.box(6, 3, 8, C.white, gauge / 2 + 14, h + 1, 0);
-    f.glass(2, 1.2, 2.4, gauge / 2 + 16, h - 0.8, 0);
-    f.box(0.15, 16, 0.15, C.black, gauge / 2 + 14, h - 16, -2);
-    f.box(0.15, 16, 0.15, C.black, gauge / 2 + 14, h - 16, 2);
-    f.box(12, 1, 2.8, C.yellowDark, gauge / 2 + 14, h - 17, 0);
-  }
-}
-
 /** Pórtico de pátio sobre pneus (RTG), vão ao longo de Z. */
 export function rtgCrane(f: Frame, color: string = C.white) {
   const span = 23,

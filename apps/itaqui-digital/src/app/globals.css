@@ -2418,6 +2418,8 @@ button.port3d-label:hover {
     right: 12px;
     bottom: 12px;
     transform: none;
+    /* Esmaecimento à direita indica que a lista rola para os lados. */
+    mask-image: linear-gradient(to right, #000 82%, transparent);
   }
   .p3d-card {
     top: auto;

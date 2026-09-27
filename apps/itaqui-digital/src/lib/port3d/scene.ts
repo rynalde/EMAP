@@ -15,6 +15,7 @@ import {
   orientedBox,
   pointInPolygon,
   polygonArea,
+  rayHit,
   polylineLength,
   project,
   sampleAlong,
@@ -35,11 +36,13 @@ import {
   berthedVessels,
   boundaryRing,
   landRing,
+  ringSegments,
   shipPose,
   type BerthLayout,
 } from "./layout";
 import * as M from "./models";
 import { REFERENCE } from "./reference";
+import { FlatMesh, junctionNodes, nodeKey, smooth, stations } from "./roads";
 import {
   LC,
   LC_COLOR,
@@ -70,6 +73,8 @@ export type PortSceneInput = {
 
 export type PortSceneEvents = {
   onSelect?: (selection: SceneSelection | null) => void;
+  /** O tour guiado terminou ou foi interrompido pelo usuário. */
+  onTourEnd?: () => void;
 };
 
 export type PortSceneController = {
@@ -77,6 +82,8 @@ export type PortSceneController = {
   focus(target: "home" | string): void;
   setAutoRotate(on: boolean): void;
   setLabels(on: boolean): void;
+  startTour(): void;
+  stopTour(): void;
   dispose(): void;
 };
 
@@ -243,6 +250,12 @@ export function createPortScene(
     }
   }
 
+  // Linhas suavizadas uma única vez: desenho, caminhões, trens e portaria usam as mesmas.
+  const fixedNodes = junctionNodes([...roads.map((x) => x.line), ...rails]);
+  for (const road of roads) road.line = smooth(road.line, fixedNodes);
+  for (let i = 0; i < rails.length; i++)
+    rails[i] = smooth(rails[i], fixedNodes);
+
   const statics = new Batch();
   const root = statics.frame();
   const g = root.sub(0, GROUND, 0);
@@ -391,7 +404,61 @@ export function createPortScene(
       }
       return jettyLines.some((l) => distanceToPolyline(p, l) < 40);
     };
-    const terrain = terrainGeometry(input.landcover, small ? 3 : 2, keepWater);
+    // Obstáculos com caixa envolvente para descartar rápido o que está longe.
+    const obstacleLines = [
+      ...roads.map((x) => ({ line: x.line, margin: x.width / 2 + 8 })),
+      ...rails.map((line) => ({ line, margin: 8 })),
+      ...REFERENCE.conveyors.map((c) => ({
+        line: c.path.map(project),
+        margin: 6,
+      })),
+    ].map((o) => {
+      const xs = o.line.map((p) => p.x),
+        zs = o.line.map((p) => p.z);
+      return {
+        ...o,
+        box: [
+          Math.min(...xs) - o.margin,
+          Math.max(...xs) + o.margin,
+          Math.min(...zs) - o.margin,
+          Math.max(...zs) + o.margin,
+        ],
+      };
+    });
+    const footprints = [
+      ...REFERENCE.buildings.map((b) => ({
+        c: project([b.lon, b.lat]),
+        r: Math.hypot(b.length, b.width) / 2 + 8,
+      })),
+      ...REFERENCE.tanks.map((t) => ({
+        c: project([t.lon, t.lat]),
+        r: t.r + 8,
+      })),
+      ...buildings.map((ring) => {
+        const box = orientedBox(ring);
+        return {
+          c: { x: box.cx, z: box.cz },
+          r: Math.hypot(box.length, box.width) / 2 + 8,
+        };
+      }),
+    ];
+    const clearCanopy = (p: XZ) =>
+      pointInPolygon(p, land) &&
+      (footprints.some((f) => Math.hypot(f.c.x - p.x, f.c.z - p.z) < f.r) ||
+        obstacleLines.some(
+          (o) =>
+            p.x > o.box[0] &&
+            p.x < o.box[1] &&
+            p.z > o.box[2] &&
+            p.z < o.box[3] &&
+            distanceToPolyline(p, o.line) < o.margin,
+        ));
+    const terrain = terrainGeometry(
+      input.landcover,
+      small ? 3 : 2,
+      keepWater,
+      clearCanopy,
+    );
     statics.addGeometry(terrain);
     terrain.dispose();
   }
@@ -405,7 +472,14 @@ export function createPortScene(
       continue;
     }
     const L = b.length + 36;
-    const apron = 32;
+    // Em píeres estreitos o avental não passa da largura do terrapleno.
+    const depth = rayHit(
+      { x: b.quay.x + b.normal.x * 2, z: b.quay.z + b.normal.z * 2 },
+      b.normal,
+      ringSegments(land),
+      32,
+    );
+    const apron = depth === null ? 32 : Math.max(14, depth + 2);
     const f = root.sub(
       b.quay.x + (b.normal.x * apron) / 2,
       0,
@@ -432,10 +506,10 @@ export function createPortScene(
     }
     // Trilhos dos guindastes e faixa de rolamento.
     edge.box(L, 0.08, 0.35, C.rail, 0, 0.02, 4);
-    edge.box(L, 0.08, 0.35, C.rail, 0, 0.02, 14);
-    edge.box(L, 0.04, 0.3, C.marking, 0, 0.02, 21);
+    if (apron > 18) edge.box(L, 0.08, 0.35, C.rail, 0, 0.02, 14);
+    if (apron > 24) edge.box(L, 0.04, 0.3, C.marking, 0, 0.02, 21);
     for (let x = -L / 2 + 20; x < L / 2 - 10; x += 55)
-      M.lightPole(edge, x, 27, 24);
+      M.lightPole(edge, x, Math.min(27, apron - 3), 24);
 
     equip(b);
   }
@@ -472,49 +546,65 @@ export function createPortScene(
   }
 
   // ---------- Vias e ferrovias do OSM ----------
-  const ribbon = (
-    line: Line,
-    width: number,
-    height: number,
-    color: string,
-    y = 0,
-    extend = true,
-  ) => {
-    for (let i = 1; i < line.length; i++) {
-      const a = line[i - 1],
-        b = line[i],
-        len = Math.hypot(b.x - a.x, b.z - a.z);
-      if (len < 0.2) continue;
-      const f = g.sub(
-        (a.x + b.x) / 2,
-        y,
-        (a.z + b.z) / 2,
-        Math.atan2(-(b.z - a.z), b.x - a.x),
-      );
-      f.box(len + (extend ? width * 0.9 : 0), height, width, color);
-    }
-  };
+  const shoulder = new FlatMesh(),
+    asphalt = new FlatMesh(),
+    paint = new FlatMesh(),
+    ballast = new FlatMesh(),
+    steel = new FlatMesh();
+  const rank = (w: number) => (w >= 11 ? 2 : w >= 8.5 ? 1 : 0);
   for (const road of roads) {
-    ribbon(road.line, road.width, 0.1, C.asphalt, 0.01);
+    const y = GROUND + 0.06 + rank(road.width) * 0.004;
+    // Acostamento claro por baixo dá contorno nítido; nas junções o asfalto o cobre.
+    shoulder.strip(road.line, road.width + 1.6, GROUND + 0.03);
+    asphalt.strip(road.line, road.width, y);
+    // Tampas redondas nas pontas e nós de junção fecham as emendas entre vias.
+    const nodes = road.line.filter(
+      (p, i, all) =>
+        i === 0 || i === all.length - 1 || fixedNodes.has(nodeKey(p)),
+    );
+    for (const p of nodes) {
+      shoulder.disc(p, road.width / 2 + 0.8, GROUND + 0.03);
+      asphalt.disc(p, road.width / 2, y);
+    }
     if (road.width >= 8.5) {
-      const total = polylineLength(road.line);
-      for (let d = 4; d < total - 4; d += 10) {
-        const s = sampleAlong(road.line, d);
-        g.sub(s.x, 0.11, s.z, s.angle).box(4, 0.03, 0.3, C.marking);
+      // Faixa central tracejada, interrompida nos cruzamentos.
+      const clear = road.width / 2 + 7;
+      for (const s of stations(road.line, 10, 5)) {
+        if (nodes.some((p) => Math.hypot(p.x - s.x, p.z - s.z) < clear))
+          continue;
+        const c = Math.cos(s.angle),
+          sn = -Math.sin(s.angle);
+        const hx = c * 2,
+          hz = sn * 2,
+          wx = -sn * 0.14,
+          wz = c * 0.14;
+        const a = { x: s.x - hx - wx, z: s.z - hz - wz },
+          b = { x: s.x + hx - wx, z: s.z + hz - wz },
+          cc = { x: s.x + hx + wx, z: s.z + hz + wz },
+          d = { x: s.x - hx + wx, z: s.z - hz + wz };
+        paint.tri(a, b, cc, GROUND + 0.075);
+        paint.tri(a, cc, d, GROUND + 0.075);
       }
     }
   }
   for (const rail of rails) {
-    ribbon(rail, 3.6, 0.3, C.ballast, 0.02);
-    const total = polylineLength(rail);
-    for (let d = 1; d < total; d += 3.2) {
-      const s = sampleAlong(rail, d);
-      g.sub(s.x, 0.32, s.z, s.angle).box(0.6, 0.12, 2.6, C.sleeper);
-    }
-    for (const off of [-0.72, 0.72]) {
-      const shifted = offsetLine(rail, off);
-      ribbon(shifted, 0.16, 0.22, C.rail, 0.44, false);
-    }
+    ballast.strip(rail, 3.4, GROUND + 0.025);
+    for (const s of stations(rail, 1.8, 0.9))
+      g.sub(s.x, 0.03, s.z, s.angle).box(0.5, 0.1, 2.5, C.sleeper);
+    for (const off of [-0.72, 0.72])
+      steel.strip(offsetLine(rail, off), 0.18, GROUND + 0.16);
+  }
+  const flat: [FlatMesh, string][] = [
+    [shoulder, C.concreteLight],
+    [asphalt, C.asphalt],
+    [paint, C.marking],
+    [ballast, C.ballast],
+    [steel, C.rail],
+  ];
+  for (const [mesh, color] of flat) {
+    const geometry = mesh.geometry();
+    statics.addGeometry(geometry, color);
+    geometry.dispose();
   }
 
   // ---------- Edificações do OSM ----------
@@ -846,6 +936,7 @@ export function createPortScene(
     start: number;
   } | null = null;
   function focus(id: "home" | string) {
+    stopTour();
     let target: THREE.Vector3, position: THREE.Vector3;
     const b = berths.find((x) => x.id === id);
     const p = PLACES.find((x) => x.id === id);
@@ -875,6 +966,79 @@ export function createPortScene(
       start: performance.now(),
     };
   }
+
+  // ---------- Tour guiado ----------
+  // Sobrevoo pelo mar ao longo do cais, pelos píeres de líquidos, TEGRAM e tancagem.
+  let tour: {
+    pos: THREE.CatmullRomCurve3;
+    look: THREE.CatmullRomCurve3;
+    start: number;
+    duration: number;
+  } | null = null;
+  const seaView = (id: string, back: number, side: number, up: number) => {
+    const b = berths.find((x) => x.id === id) ?? berths[0];
+    const look = new THREE.Vector3(b.quay.x, GROUND + 8, b.quay.z);
+    return [
+      look
+        .clone()
+        .add(
+          new THREE.Vector3(
+            -b.normal.x * back - b.along.x * side,
+            up,
+            -b.normal.z * back - b.along.z * side,
+          ),
+        ),
+      look,
+    ] as const;
+  };
+  const placeView = (
+    lonLat: [number, number],
+    offset: [number, number, number],
+  ) => {
+    const q = project(lonLat);
+    const look = new THREE.Vector3(q.x, GROUND + 10, q.z);
+    return [look.clone().add(new THREE.Vector3(...offset)), look] as const;
+  };
+  function startTour() {
+    const tegram = PLACES.find((x) => x.id === "tegram")!.coordinates;
+    const frames = [
+      [camera.position.clone(), controls.target.clone()] as const,
+      seaView("99", 520, 260, 260),
+      seaView("100", 260, 120, 120),
+      seaView("102", 230, 40, 95),
+      seaView("103", 220, -60, 100),
+      seaView("105", 230, -40, 110),
+      seaView("106", 210, 40, 95),
+      seaView("108", 300, 160, 160),
+      placeView(tegram, [-420, 330, 180]),
+      placeView(tegram, [120, 260, 380]),
+      placeView([-44.3615, -2.5745], [-260, 230, 300]),
+      placeView([-44.3654, -2.5793], [-330, 260, 260]),
+      [home.position.clone(), home.target.clone()] as const,
+    ];
+    tour = {
+      pos: new THREE.CatmullRomCurve3(
+        frames.map((f) => f[0]),
+        false,
+        "centripetal",
+      ),
+      look: new THREE.CatmullRomCurve3(
+        frames.map((f) => f[1]),
+        false,
+        "centripetal",
+      ),
+      start: performance.now(),
+      duration: 60000,
+    };
+    tween = null;
+    controls.autoRotate = false;
+  }
+  function stopTour() {
+    if (!tour) return;
+    tour = null;
+    events.onTourEnd?.();
+  }
+  controls.addEventListener("start", stopTour);
 
   // ---------- Interação ----------
   const raycaster = new THREE.Raycaster();
@@ -941,6 +1105,19 @@ export function createPortScene(
         }
         placeTruck(t);
       }
+    if (tour) {
+      const u = Math.min(1, (performance.now() - tour.start) / tour.duration);
+      // Arranque e chegada suaves; no meio a velocidade é constante por trecho.
+      const e =
+        u < 0.04
+          ? (u * u) / 0.08
+          : u > 0.96
+            ? 1 - ((1 - u) * (1 - u)) / 0.08
+            : u;
+      camera.position.copy(tour.pos.getPoint(e));
+      controls.target.copy(tour.look.getPoint(e));
+      if (u >= 1) stopTour();
+    }
     if (tween) {
       tween.t = Math.min(1, (performance.now() - tween.start) / 1400);
       const k =
@@ -969,12 +1146,16 @@ export function createPortScene(
     setAutoRotate(on) {
       controls.autoRotate = on && !reducedMotion;
     },
+    startTour,
+    stopTour,
     setLabels(on) {
       labels.visible = on;
       labelRenderer.domElement.style.display = on ? "" : "none";
     },
     dispose() {
       renderer.setAnimationLoop(null);
+      tour = null;
+      controls.removeEventListener("start", stopTour);
       cancelAnimationFrame(hoverFrame);
       observer.disconnect();
       renderer.domElement.removeEventListener("pointerdown", onDown);

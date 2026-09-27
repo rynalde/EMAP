@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Home,
   Info,
+  Plane,
   RotateCw,
   Ship,
   Tag,
@@ -48,6 +49,7 @@ export function Port3DView() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [selection, setSelection] = useState<SceneSelection | null>(null);
   const [autoRotate, setAutoRotate] = useState(false);
+  const [touring, setTouring] = useState(false);
   const [labels, setLabels] = useState(true);
   const [illustrative, setIllustrative] = useState(false);
   const [berthed, setBerthed] = useState<number | null>(null);
@@ -94,7 +96,7 @@ export function Port3DView() {
               cartography: cartography.data!,
               landcover,
             },
-            { onSelect: setSelection },
+            { onSelect: setSelection, onTourEnd: () => setTouring(false) },
           );
           setState("ready");
         } catch (e) {
@@ -110,9 +112,11 @@ export function Port3DView() {
     };
   }, [boundary.data, cartography.data]);
 
-  // A nota começa aberta só em telas largas, onde não cobre a cena.
+  // A nota começa aberta só em telas largas e altas, onde não cobre a cena.
   useEffect(() => {
-    setShowNote(window.matchMedia("(min-width: 761px)").matches);
+    setShowNote(
+      window.matchMedia("(min-width: 761px) and (min-height: 600px)").matches,
+    );
   }, []);
 
   useEffect(() => {
@@ -132,6 +136,17 @@ export function Port3DView() {
     [autoRotate, state],
   );
   useEffect(() => controller.current?.setLabels(labels), [labels, state]);
+
+  const toggleTour = () => {
+    if (touring) controller.current?.stopTour();
+    else {
+      setAutoRotate(false);
+      setSelection(null);
+      setShowNote(false);
+      controller.current?.startTour();
+      setTouring(true);
+    }
+  };
 
   const focus = (id: string) => {
     controller.current?.focus(id);
@@ -205,8 +220,21 @@ export function Port3DView() {
           <Home size={19} />
         </button>
         <button
+          className={`p3d-tool ${touring ? "active" : ""}`}
+          onClick={toggleTour}
+          title={touring ? "Parar o sobrevoo" : "Sobrevoo guiado"}
+          aria-label="Sobrevoo guiado"
+          aria-pressed={touring}
+          disabled={state !== "ready"}
+        >
+          <Plane size={19} />
+        </button>
+        <button
           className={`p3d-tool ${autoRotate ? "active" : ""}`}
-          onClick={() => setAutoRotate((v) => !v)}
+          onClick={() => {
+            controller.current?.stopTour();
+            setAutoRotate((v) => !v);
+          }}
           title="Girar automaticamente"
           aria-label="Girar automaticamente"
           aria-pressed={autoRotate}

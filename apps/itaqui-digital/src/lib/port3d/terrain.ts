@@ -118,12 +118,14 @@ const hash = (i: number, j: number) => {
 
 /**
  * Malha facetada do terreno a partir da cobertura do solo, amostrada a cada `step`
- * células. `keepWater(p)` força água onde a cena precisa de lâmina livre (berços, píeres).
+ * células. `keepWater(p)` força água onde a cena precisa de lâmina livre (berços, píeres)
+ * e `clearCanopy(p)` rebaixa a mata para gramado onde há vias ou construções.
  */
 export function terrainGeometry(
   lc: LandCover,
   step: number,
   keepWater: (p: XZ) => boolean,
+  clearCanopy: (p: XZ) => boolean = () => false,
 ) {
   const [w, s, e, n] = lc.bounds;
   const cols = Math.floor(lc.width / step),
@@ -153,6 +155,8 @@ export function terrainGeometry(
         lat = n - ((j + 0.5) * step * (n - s)) / lc.height;
       const p = project([lon, lat]);
       if (best !== LC.water && keepWater(p)) best = LC.water;
+      // Sem árvores sobre vias, trilhos e estruturas (a resolução de 10 m as mistura).
+      else if (isCanopy(best) && clearCanopy(p)) best = LC.grass;
       const k = j * cols + i;
       cls[k] = best;
       pts[k] = p;
@@ -179,11 +183,19 @@ export function terrainGeometry(
     colors: number[] = [];
   const color = new THREE.Color();
   const tri = (a: number, b: number, c: number) => {
-    // Cor da face pela classe dominante dos três vértices (bordas nítidas).
+    // Faces que sobem para o dossel ganham a cor da mata, como encostas; as demais,
+    // a classe dominante dos três vértices (bordas nítidas).
     const ca = cls[a],
       cb = cls[b],
       cc = cls[c];
-    const face = ca === cb || ca === cc ? ca : cb === cc ? cb : ca;
+    const canopy = [a, b, c].filter((v) => isCanopy(cls[v]));
+    const face = canopy.length
+      ? cls[canopy.reduce((m, v) => (hgt[v] > hgt[m] ? v : m))]
+      : ca === cb || ca === cc
+        ? ca
+        : cb === cc
+          ? cb
+          : ca;
     color.set(LC_COLOR[face] ?? LC_COLOR[LC.grass]);
     const shade = 0.94 + hash(a, c) * 0.12;
     for (const v of [a, b, c]) {

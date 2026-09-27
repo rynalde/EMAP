@@ -2095,6 +2095,28 @@ small {
   color: var(--accent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
+@media (max-width: 360px) {
+  /* Em telas muito estreitas o relógio cede espaço para o botão de ajuda. */
+  .header-right .clock {
+    display: none;
+  }
+  .rail-button > span {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.1;
+    max-width: 50px;
+    font-size: 7.5px;
+  }
+  .nav-rail {
+    padding: 4px 6px;
+  }
+  .nav-rail > div {
+    gap: 2px;
+  }
+  .rail-button {
+    min-width: 0;
+  }
+}
 /* ---------- Vista 3D ---------- */
 .p3d-shell {
   position: fixed;
@@ -2105,6 +2127,9 @@ small {
 .p3d-stage {
   position: absolute;
   inset: 0;
+  /* Contexto próprio: rótulos 3D ficam sempre abaixo dos painéis da interface. */
+  z-index: 0;
+  isolation: isolate;
 }
 .p3d-stage canvas {
   display: block;
@@ -2348,7 +2373,8 @@ button.port3d-label:hover {
 }
 .p3d-note {
   position: absolute;
-  right: 16px;
+  /* À esquerda da coluna de controles, que ocupa a borda direita. */
+  right: 76px;
   bottom: 70px;
   width: 340px;
   max-width: calc(100% - 32px);

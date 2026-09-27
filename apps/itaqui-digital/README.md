@@ -50,9 +50,11 @@ Atribuições: © ESA WorldCover project 2021 / Contains modified Copernicus Sen
 
 ### Navegação e código
 
-Arraste para girar, use o botão direito ou dois dedos para deslocar e role para aproximar. Os atalhos na base aproximam cada berço, o TEGRAM e o parque de tancagem; clique em um navio para ver nome, carga e data do registro EMAP.
+Arraste para girar, use o botão direito ou dois dedos para deslocar e role para aproximar. Os atalhos na base aproximam cada berço, o TEGRAM e o parque de tancagem; clique em um navio para ver nome, carga e data do registro EMAP. O botão de avião faz um sobrevoo guiado de um minuto pelo cais, píeres, TEGRAM e tancagem; arrastar a cena ou escolher um atalho o interrompe.
 
-O código fica em `src/lib/port3d/`: `geo.ts` (projeção local em metros), `layout.ts` (costa, berços e posição dos navios), `terrain.ts` (relevo e cores a partir do WorldCover), `reference.ts` (estruturas posicionadas pela imagem), `kit.ts` (peças com cor por vértice fundidas em poucas malhas), `models.ts` (modelos procedurais) e `scene.ts` (montagem, câmera e interação).
+Vias e ferrovias do OSM são suavizadas (Chaikin) sem mover cruzamentos e emendas, e desenhadas como faixas contínuas com juntas em meia-esquadria; caminhões, trens e a portaria seguem as mesmas linhas suavizadas.
+
+O código fica em `src/lib/port3d/`: `geo.ts` (projeção local em metros), `layout.ts` (costa, berços e posição dos navios), `terrain.ts` (relevo e cores a partir do WorldCover), `roads.ts` (suavização e faixas de vias e trilhos), `reference.ts` (estruturas posicionadas pela imagem), `kit.ts` (peças com cor por vértice fundidas em poucas malhas), `models.ts` (modelos procedurais) e `scene.ts` (montagem, câmera e interação).
 
 ## Ativar posições AIS
 

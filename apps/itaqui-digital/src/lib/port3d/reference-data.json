@@ -60,8 +60,8 @@
     {
       "id": "graos-branco",
       "name": "Armazém de granéis (cobertura clara)",
-      "lon": -44.36649,
-      "lat": -2.56699,
+      "lon": -44.366515,
+      "lat": -2.566986,
       "length": 149,
       "width": 54,
       "angle": 81.9,
@@ -71,28 +71,29 @@
       "style": "arch"
     },
     {
-      "id": "graos-branco-2",
-      "lon": -44.36616,
-      "lat": -2.56722,
-      "length": 50,
-      "width": 21,
-      "angle": 81.9,
-      "height": 8,
-      "roof": "#e6e4de",
-      "wall": "#d9dcdc",
-      "style": "gable"
-    },
-    {
       "id": "galpao-azul",
       "name": "Galpão de cobertura azul",
-      "lon": -44.36694,
-      "lat": -2.57003,
+      "lon": -44.366938,
+      "lat": -2.570012,
       "length": 173,
       "width": 42,
       "angle": 78.9,
       "height": 12,
       "roof": "#3f6f9e",
       "wall": "#d0d6dc",
+      "style": "gable"
+    },
+    {
+      "id": "galpao-escuro",
+      "name": "Galpão de granéis (cobertura escura)",
+      "lon": -44.367068,
+      "lat": -2.57881,
+      "length": 172,
+      "width": 71,
+      "angle": 51.1,
+      "height": 12,
+      "roof": "#7b6a5c",
+      "wall": "#d6d2cb",
       "style": "gable"
     },
     {
@@ -107,6 +108,90 @@
       "roof": "#d8998a",
       "wall": "#e7e1da",
       "style": "gable"
+    },
+    {
+      "id": "det-7",
+      "lon": -44.368266,
+      "lat": -2.57695,
+      "length": 84.9,
+      "width": 50.6,
+      "angle": -85.0,
+      "height": 11,
+      "roof": "#baa08f",
+      "wall": "#dcdad4",
+      "style": "gable"
+    },
+    {
+      "id": "det-1",
+      "lon": -44.366591,
+      "lat": -2.575081,
+      "length": 68.0,
+      "width": 11.9,
+      "angle": -30.3,
+      "height": 8,
+      "roof": "#958074",
+      "wall": "#dcdad4",
+      "style": "flat"
+    },
+    {
+      "id": "det-2",
+      "lon": -44.366074,
+      "lat": -2.57538,
+      "length": 28.6,
+      "width": 23.7,
+      "angle": -44.7,
+      "height": 8,
+      "roof": "#b37665",
+      "wall": "#dcdad4",
+      "style": "flat"
+    },
+    {
+      "id": "det-3",
+      "lon": -44.367789,
+      "lat": -2.577816,
+      "length": 26.5,
+      "width": 17.2,
+      "angle": -42.6,
+      "height": 8,
+      "roof": "#cdaa98",
+      "wall": "#dcdad4",
+      "style": "flat"
+    },
+    {
+      "id": "det-5",
+      "lon": -44.367581,
+      "lat": -2.57753,
+      "length": 23.4,
+      "width": 17.7,
+      "angle": -44.2,
+      "height": 8,
+      "roof": "#bc8c83",
+      "wall": "#dcdad4",
+      "style": "flat"
+    },
+    {
+      "id": "det-6",
+      "lon": -44.365346,
+      "lat": -2.576919,
+      "length": 19.7,
+      "width": 19.2,
+      "angle": 42.0,
+      "height": 5,
+      "roof": "#b77f6d",
+      "wall": "#dcdad4",
+      "style": "flat"
+    },
+    {
+      "id": "det-4",
+      "lon": -44.367747,
+      "lat": -2.57769,
+      "length": 18.7,
+      "width": 15.1,
+      "angle": -43.4,
+      "height": 5,
+      "roof": "#caa393",
+      "wall": "#dcdad4",
+      "style": "flat"
     }
   ],
   "tanks": [
@@ -729,8 +814,8 @@
       "kind": "beige"
     },
     {
-      "lon": -44.3603,
-      "lat": -2.57566,
+      "lon": -44.360277,
+      "lat": -2.575681,
       "r": 14.2,
       "kind": "water"
     },
@@ -831,9 +916,9 @@
       "kind": "white"
     },
     {
-      "lon": -44.365892,
-      "lat": -2.576929,
-      "r": 6.3,
+      "lon": -44.365882,
+      "lat": -2.57693,
+      "r": 6.9,
       "kind": "beige"
     },
     {
@@ -849,9 +934,9 @@
       "kind": "white"
     },
     {
-      "lon": -44.366048,
-      "lat": -2.577224,
-      "r": 7.6,
+      "lon": -44.366043,
+      "lat": -2.577227,
+      "r": 8.0,
       "kind": "beige"
     },
     {
@@ -861,9 +946,9 @@
       "kind": "gray"
     },
     {
-      "lon": -44.365843,
+      "lon": -44.365841,
       "lat": -2.577307,
-      "r": 10.8,
+      "r": 11.2,
       "kind": "white"
     },
     {
@@ -871,12 +956,6 @@
       "lat": -2.577444,
       "r": 10.6,
       "kind": "beige"
-    },
-    {
-      "lon": -44.366474,
-      "lat": -2.577478,
-      "r": 6.8,
-      "kind": "rust"
     },
     {
       "lon": -44.366206,

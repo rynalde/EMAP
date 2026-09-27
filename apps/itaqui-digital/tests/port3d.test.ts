@@ -148,3 +148,32 @@ test("satellite-derived structures stand on land and reference real berths", asy
     );
   assert.match(REFERENCE.source.captured, /^\d{4}-\d{2}-\d{2}$/);
 });
+
+test("road smoothing keeps ends and junctions and builds upward-facing strips", async () => {
+  const { smooth, junctionNodes, FlatMesh, stations } =
+    await import("../src/lib/port3d/roads");
+  const a = [
+    { x: 0, z: 0 },
+    { x: 50, z: 0 },
+    { x: 50, z: 50 },
+    { x: 100, z: 50 },
+  ];
+  const b = [
+    { x: 50, z: 50 },
+    { x: 50, z: 120 },
+  ];
+  const fixed = junctionNodes([a, b]);
+  const s = smooth(a, fixed);
+  assert.deepEqual(s[0], a[0]);
+  assert.deepEqual(s[s.length - 1], a[3]);
+  // O nó compartilhado com a outra via não se move; a curva no (50, 0) é arredondada.
+  assert.ok(s.some((p) => p.x === 50 && p.z === 50));
+  assert.ok(!s.some((p) => p.x === 50 && p.z === 0));
+  const mesh = new FlatMesh();
+  mesh.strip(s, 8, 3);
+  const g = mesh.geometry();
+  const n = g.getAttribute("normal");
+  for (let i = 0; i < n.count; i++) assert.ok(n.getY(i) > 0.99, "faces up");
+  const marks = [...stations(s, 10, 5)];
+  assert.ok(marks.length >= 12 && marks.length <= 16, `${marks.length} marks`);
+});

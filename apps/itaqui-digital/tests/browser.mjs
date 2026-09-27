@@ -210,7 +210,18 @@ try {
   );
   await view3d.locator(".port3d-label.ship.illustrative").first().click();
   await view3d.getByText("NAVIO ILUSTRATIVO").waitFor();
+  // Sobrevoo guiado: liga, e um atalho de berço o interrompe.
+  const tourButton = view3d.getByRole("button", { name: "Sobrevoo guiado" });
+  await tourButton.click();
+  assert.equal(await tourButton.getAttribute("aria-pressed"), "true");
+  await view3d.waitForTimeout(1500);
   await view3d.locator(".p3d-jump button", { hasText: /^101$/ }).click();
+  await view3d.waitForFunction(
+    () =>
+      document
+        .querySelector('[aria-label="Sobrevoo guiado"]')
+        ?.getAttribute("aria-pressed") === "false",
+  );
   await view3d.waitForTimeout(2200);
   await view3d.screenshot({ path: "test-results/3d-berth.png" });
   await view3d.setViewportSize({ width: 390, height: 844 });
@@ -223,7 +234,9 @@ try {
   await view3d.screenshot({ path: "test-results/3d-mobile.png" });
   assert.deepEqual(errors3d, []);
   await view3d.close();
-  console.log("PASS: 3D scene, EMAP ships, illustrative fill, focus, mobile");
+  console.log(
+    "PASS: 3D scene, EMAP ships, illustrative fill, tour, focus, mobile",
+  );
 } finally {
   await browser.close();
 }

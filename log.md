@@ -28,3 +28,14 @@ Este arquivo registra o histórico de atualizações estruturais e de conteúdo 
 - Registro de três comportamentos de hardware levantados em bancada que condicionam o firmware: exclusividade mútua entre GNSS e dados celulares, PWRKEY como alternador de estado (e não como liga), e picos de corrente de ~2 A na transmissão.
 - Novo experimento documentando o bring-up completo do backhaul celular, com isolamento camada a camada até a causa raiz: a rede da operadora restringe a anexação deste dispositivo a portas HTTP, bloqueando toda porta capaz de TLS.
 - Inclusão da tabela de códigos de resultado do comando `AT+CAOPEN`, ausente dos manuais consultados e necessária para interpretar corretamente os diagnósticos do módulo.
+
+## [2026-09-26] - Vista 3D low-poly do Porto do Itaqui (`itaqui-digital`)
+- Nova rota `/3d` no app [`apps/itaqui-digital`](apps/itaqui-digital/README.md#vista-3d), acessível pelo botão **3D** do mapa: representação low-poly do porto em three.js, no estilo de pacotes portuários comerciais, com todos os modelos gerados em código (sem assets de terceiros).
+- Geometria real: linha de costa, perímetro, vias, ferrovias, edificações e tanques do OpenStreetMap; face do cais de cada berço alinhada à costa mapeada.
+- Navios atracados da programação EMAP, com a mesma regra de validade do mapa 2D (berço conhecido e registro de até 7 dias); tipo do navio inferido da carga e identificado como ilustrativo.
+- Guindastes, pátios de contêineres, silos do TEGRAM, tanques adicionais, correia, dutos e veículos são cenografia ilustrativa, declarada na interface e no README.
+
+## [2026-09-27] - Vista 3D ajustada à imagem de satélite e à cobertura do solo
+- A vista `/3d` do [`itaqui-digital`](apps/itaqui-digital/README.md#estruturas-posicionadas-por-imagem-de-satélite) deixa de preencher o porto com pátios aleatórios e passa a posicionar as estruturas reais vistas na imagem Esri World Imagery (Vantor WorldView-3, 06/05/2023): os quatro armazéns do TEGRAM, os galpões vizinhos, o armazém de cobertura salmão, cerca de 130 tanques nos parques de tancagem, as correias da retroárea e a ponte de acesso com plataformas e dolfins dos berços 106 e 108.
+- Tanques detectados com o modelo NVIDIA LocateAnything-3B (licença para pesquisa acadêmica), executado localmente sobre recortes da imagem e revisado; demais estruturas lidas sobre a imagem com grade de coordenadas.
+- Entorno desenhado a partir do ESA WorldCover 10 m (2021, CC BY 4.0): manguezais, matas e áreas construídas, com dossel facetado e água livre diante dos berços.

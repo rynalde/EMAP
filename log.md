@@ -39,3 +39,9 @@ Este arquivo registra o histórico de atualizações estruturais e de conteúdo 
 - A vista `/3d` do [`itaqui-digital`](apps/itaqui-digital/README.md#estruturas-posicionadas-por-imagem-de-satélite) deixa de preencher o porto com pátios aleatórios e passa a posicionar as estruturas reais vistas na imagem Esri World Imagery (Vantor WorldView-3, 06/05/2023): os quatro armazéns do TEGRAM, os galpões vizinhos, o armazém de cobertura salmão, cerca de 130 tanques nos parques de tancagem, as correias da retroárea e a ponte de acesso com plataformas e dolfins dos berços 106 e 108.
 - Tanques detectados com o modelo NVIDIA LocateAnything-3B (licença para pesquisa acadêmica), executado localmente sobre recortes da imagem e revisado; demais estruturas lidas sobre a imagem com grade de coordenadas.
 - Entorno desenhado a partir do ESA WorldCover 10 m (2021, CC BY 4.0): manguezais, matas e áreas construídas, com dossel facetado e água livre diante dos berços.
+
+## [2026-09-28] - Tag celular (T-SIM7000G): bancada contra Supabase local
+- Nova rodada do [experimento de backhaul celular](experiments/backhaul_celular_lte.md#atualização-280926-a-resposta-na-porta-80-é-da-operadora) contra um Supabase local exposto por túnel `cloudflared` na porta 80.
+- A resposta recebida pela placa era um `302` da própria operadora para o portal de recarga (`portalrecarga.vivo.com.br`): o chip estava sem saldo. É o mesmo padrão de portas que fundamentou a conclusão anterior, que passa a exigir novo teste com saldo confirmado.
+- Cinco defeitos de firmware corrigidos: reanexação à rede após `AT+CGATT=0`, requisição HTTP fragmentada em dezenas de `AT+CASEND`, pulso incondicional do PWRKEY, antena GNSS ativa sem alimentação (`AT+SGPIO`) e log `sats=0/0` que não media satélites visíveis.
+- Firmware passa a aceitar HTTP na porta 80 (`SUPABASE_TLS 0`) para testes de bancada; o padrão continua HTTPS na 443.

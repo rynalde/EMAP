@@ -80,6 +80,8 @@ Registro que economiza tempo: boa parte da investigação inicial atacou certifi
 
 ## Conclusão
 
+> **Revisada em 28/09/2026.** A rodada descrita em [Atualização](#atualização-280926-a-resposta-na-porta-80-é-da-operadora) mostra que o padrão de portas medido aqui coincide com o de um chip sem saldo. A conclusão abaixo fica registrada como foi escrita, mas depende de um novo teste com saldo confirmado.
+
 O bloqueio não está no firmware, na placa, na APN, na pilha TCP escolhida nem no backend. A rede da operadora restringe esta anexação a portas HTTP, e essa restrição acompanha o dispositivo, não o chip.
 
 Nenhuma alteração de código na placa abre a porta 443.
@@ -96,3 +98,50 @@ O segundo destrava a operação imediatamente; o primeiro é o destino. E o rela
 ## Pendência Aberta
 
 A antena GNSS registrou zero satélites durante todo o experimento (`sats=0/0` após 90 s de busca), enquanto o LTE anexou normalmente. O comportamento é compatível com antena no conector trocado ou ausência de vista de céu, e **não** com defeito de firmware — mas não foi confirmado, por ter sido conduzido em ambiente fechado.
+
+> **Atualização de 28/09/2026:** o `sats=0/0` não media satélites visíveis. Ver a seção seguinte.
+
+## Atualização (28/09/26): a resposta na porta 80 é da operadora
+
+Nova rodada de bancada com o mesmo chip, agora contra um backend Supabase local exposto por um *quick tunnel* do `cloudflared` — que atende HTTP puro na porta 80, a única porta que a rede deixava sair.
+
+### O que foi validado
+
+| Camada | Resultado |
+| :--- | :--- |
+| Registro | LTE CAT-M1, Vivo (724-11), banda 3, CSQ 26–31 |
+| Anexação a cada ciclo | 6 de 6 ciclos, após a correção de reanexação (abaixo) |
+| Envio do POST | Requisição inteira em um único `AT+CASEND` de 733 bytes |
+| Caminho túnel → Supabase → `ingest` | 200 com a mesma requisição, a partir do computador |
+| GNSS | Até 8 satélites visíveis em ambiente fechado, sem fix |
+
+### A resposta vinha da operadora
+
+O modem recebia uma resposta e a conexão era encerrada 2 ms depois — rápido demais para a biblioteca ler os dados (o TinyGSM não lê um socket já fechado, porque o SIM7000 trava se consultado sobre dados sem conexão aberta). Para ver a resposta, a mesma requisição foi enviada pela pilha TCP legada (`AT+CIPSTART`), que entrega na UART tudo o que chega, mesmo depois do encerramento:
+
+```
+HTTP/1.1 302 Found
+Location: http://portalrecarga.vivo.com.br/recarga/
+Connection: Close
+```
+
+Não é o túnel nem o backend: é o **portal de recarga da operadora**. O chip estava sem crédito ou sem pacote de dados ativo. Nessa condição a rede mantém o registro e o contexto PDP, libera apenas as portas HTTP — para poder redirecionar ao portal — e recusa as demais.
+
+É o mesmo padrão que a varredura de portas deste experimento mediu. Não é possível afirmar que o chip estava sem saldo na data da varredura original, e o teste no telefone continua sendo um dado contrário. Mas a hipótese de restrição por classe de dispositivo precisa ser refeita com saldo confirmado antes de ser mantida. **Antes de investigar qualquer falha de transmissão desta placa, confirmar o saldo do chip.**
+
+### Defeitos de firmware encontrados no caminho
+
+Independentes da operadora, e corrigidos em `apps/periplus/firmware/tsim7000g-tag/`:
+
+1.  **Reanexação.** `gprsDisconnect()` do TinyGSM termina com `AT+CGATT=0`, que em LTE também cancela o registro (`CEREG: 0,0`, sem nem buscar rede). Nada reanexava depois, então todo ciclo após o primeiro esgotava a espera por rede e descartava a leitura. Esse é o `waiting for network ... FAILED` intermitente das rodadas anteriores. Agora o firmware envia `AT+CGATT=1` antes de esperar a rede.
+2.  **Requisição fragmentada.** O ArduinoHttpClient escreve cabeçalho por cabeçalho, e cada escrita vira um `AT+CASEND`. A firmware R1529 responde com um `OK` simples em vez do `+CASEND:` que o TinyGSM espera, o que custa ~1 s de timeout por escrita. Uma requisição levava mais de 30 s para sair, e o Cloudflare encerrava a conexão no meio dos cabeçalhos. Agora a requisição sai em uma única escrita.
+3.  **PWRKEY incondicional.** O firmware pulsava o PWRKEY a cada boot, desligando um modem já ligado (ver [hardware](../hardware/lilygo_t_sim7000g.md#2-pwrkey-alterna-não-liga)). Agora consulta `AT` antes.
+4.  **Antena GNSS sem alimentação.** A antena ativa é alimentada pelo GPIO4 do modem (`AT+SGPIO=0,4,1,1`), como no exemplo oficial da LILYGO. Com ela ligada, 2 a 8 satélites apareceram em ambiente fechado na maioria dos ciclos. Nas duas janelas curtas capturadas antes da correção não apareceu nenhum, mas a amostra é pequena demais para atribuir a diferença só à alimentação.
+5.  **`sats=0/0` enganoso.** `getGPS()` não preenche nada antes do fix, então o log imprimia `0/0` mesmo com satélites visíveis. A pendência acima foi registrada a partir desse número. Sem fix, o firmware agora imprime o quadro bruto do `AT+CGNSINF` (campo 15 = satélites visíveis, campo 19 = melhor C/N0).
+
+Um comportamento ficou sem causa confirmada: o modem ficou mudo ou reiniciou algumas vezes perto do ligamento do GNSS. A suspeita é queda de tensão da Li-Po sob a carga somada de GNSS e rádio. O firmware agora testa `AT` antes da fase de rede e religa o modem se ele não responder.
+
+### Pendências
+
+*   Repetir o envio com o chip comprovadamente com saldo, primeiro na porta 80 (túnel) e depois na 443 direto ao Supabase, para confirmar ou descartar a restrição por dispositivo.
+*   Obter um fix GNSS com vista de céu.

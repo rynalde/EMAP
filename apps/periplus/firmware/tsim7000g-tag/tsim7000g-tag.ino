@@ -23,8 +23,7 @@
 //   loop: [GNSS phase] [network phase] every SEND_INTERVAL_MS.
 //
 // Libraries (install via Arduino Library Manager):
-//   - TinyGSM             (Volodymyr Shymanskyy)  modem driver + GNSS
-//   - ArduinoHttpClient   (Arduino)               HTTP over the modem's socket
+//   - TinyGSM             (Volodymyr Shymanskyy)  modem driver, GNSS, sockets
 //
 // Board: "ESP32 Dev Module" (ESP32-WROVER-B). Insert a data-enabled SIM and
 // attach BOTH antennas — LTE and GNSS are separate connectors.
@@ -39,14 +38,33 @@
 
 #include <Arduino.h>
 #include <TinyGsmClient.h>
-#include <ArduinoHttpClient.h>
 
 #include "config.h"
 
+// Defaults for a config.h written before these existed: HTTPS straight to
+// Supabase, which is what every board did until then.
+#ifndef SUPABASE_TLS
+#define SUPABASE_TLS 1
+#endif
+#ifndef SUPABASE_PORT
+#define SUPABASE_PORT 443
+#endif
+
 HardwareSerial modemSerial(1);
 TinyGsm modem(modemSerial);
+#if SUPABASE_TLS
 TinyGsmClientSecure netClient(modem);
-HttpClient http(netClient, SUPABASE_HOST, 443);
+#else
+// Plain TCP. See SUPABASE_TLS in config.example.h for when and why.
+TinyGsmClient netClient(modem);
+#endif
+
+// How long to wait for the server's reply once the request is out.
+static const uint32_t HTTP_TIMEOUT_MS = 20000;
+
+// Most bytes one AT+CASEND accepts. postReading() sends in a single write, so
+// this is the ceiling on the whole request, headers included.
+static const size_t MODEM_MAX_SEND = 1460;
 
 uint32_t seq = 0;
 uint32_t lastCycleMs = 0;
@@ -69,19 +87,26 @@ bool gnssOn = false;
 String imei;
 
 static void powerOnModem() {
-  pinMode(MODEM_PWRKEY, OUTPUT);
-  // PWRKEY is edge-triggered: a low pulse of >1 s toggles the modem. The board
-  // inverts it, so HIGH here is the idle level and LOW is the pulse.
-  digitalWrite(MODEM_PWRKEY, HIGH);
-  delay(300);
-  digitalWrite(MODEM_PWRKEY, LOW);
-  delay(1000);
-  digitalWrite(MODEM_PWRKEY, HIGH);
-
   pinMode(MODEM_DTR, OUTPUT);
   digitalWrite(MODEM_DTR, LOW);   // keep the modem out of sleep
 
+  pinMode(MODEM_PWRKEY, OUTPUT);
+  digitalWrite(MODEM_PWRKEY, HIGH);
   modemSerial.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
+
+  // PWRKEY TOGGLES the modem, it does not switch it on. The modem is powered
+  // from the battery rail, so it survives an ESP32 reset (upload, serial
+  // monitor opening, watchdog) — pulsing unconditionally would switch an
+  // already-running modem OFF. Ask first; pulse only if it stays silent.
+  if (modem.testAT(1000)) {
+    Serial.println("[MODEM] already on");
+    return;
+  }
+
+  // The board inverts PWRKEY, so HIGH is idle and LOW is the >1 s pulse.
+  digitalWrite(MODEM_PWRKEY, LOW);
+  delay(1000);
+  digitalWrite(MODEM_PWRKEY, HIGH);
   delay(3000);
 }
 
@@ -90,6 +115,14 @@ static void powerOnModem() {
 // loop inside setup() looks identical to a dead one.
 static bool connectNetwork() {
   if (modem.isGprsConnected()) return true;
+
+  // gprsDisconnect() ends with AT+CGATT=0, a full detach. On LTE that also
+  // deregisters (CEREG 0,0 — not even searching) and the modem stays that way
+  // until told to attach, so without this every cycle after the first sat out
+  // NETWORK_TIMEOUT_MS and dropped its reading. Returns once attached, or
+  // gives up on its own; waitForNetwork below is the real verdict.
+  modem.sendAT(GF("+CGATT=1"));
+  modem.waitResponse(NETWORK_TIMEOUT_MS);
 
   Serial.print("[NET] waiting for network ... ");
   if (!modem.waitForNetwork(NETWORK_TIMEOUT_MS)) {
@@ -119,6 +152,12 @@ static bool acquireFix(float *lat, float *lng, int *usat, float *hdop) {
     modem.gprsDisconnect();
   }
 
+  // The GNSS antenna is active and its supply hangs off the modem's GPIO4 on
+  // this board: without it the receiver runs but hears nothing (sats=0/0 on an
+  // open sky). Harmless on revisions that power the antenna permanently.
+  modem.sendAT(GF("+SGPIO=0,4,1,1"));
+  modem.waitResponse();
+
   gnssOn = modem.enableGPS();
   if (!gnssOn) {
     Serial.println("[GNSS] power on FAILED (receiver did not answer)");
@@ -146,11 +185,20 @@ static bool acquireFix(float *lat, float *lng, int *usat, float *hdop) {
   Serial.printf("[GNSS] %s after %lu ms (sats=%d/%d)\n",
                 haveFix ? "fix" : "no fix", (unsigned long)(millis() - start),
                 *usat, vsat);
+  if (!haveFix) {
+    // getGPS() fills nothing until there is a fix, so the count above reads
+    // 0/0 even with satellites in view. The raw frame still carries them
+    // (field 15 = in view, field 19 = best C/N0): "no fix, 8 in view" and "no
+    // fix, antenna dead" are different faults.
+    Serial.printf("[GNSS] raw %s\n", modem.getGPSraw().c_str());
+  }
 
   // Off before the network phase, per the manual. Done even when the fix
   // failed: the constraint is about the receiver being powered, not about
   // whether it succeeded.
   modem.disableGPS();
+  modem.sendAT(GF("+SGPIO=0,4,1,0"));
+  modem.waitResponse();
   return haveFix;
 }
 
@@ -199,45 +247,81 @@ static String buildPayload(const char *status, bool havePosition, double lat,
 }
 
 // POST one reading to the same RPC every other device writes through.
+//
+// Hand-rolled rather than ArduinoHttpClient, for one reason: the request must
+// leave in ONE write. TinyGSM turns every client write into its own AT+CASEND,
+// and firmware R1529 answers those with a bare OK instead of the "+CASEND:"
+// TinyGSM waits for, so each write stalls ~1 s on a timeout. ArduinoHttpClient
+// writes header by header; on the bench one request took over 30 s to dribble
+// out and the Cloudflare edge hung up half way through the headers.
+//
+// HTTP/1.1 and NOT "Connection: close": the reply is read while the socket is
+// still open, then we close it ourselves. The modem frees a socket the moment
+// the server closes it, and TinyGSM refuses to read one it has seen close (the
+// SIM7000 crashes if asked). Over HTTP/1.0 the reply arrived and the close
+// landed 2 ms behind it, so the reply was lost every time.
 static bool postReading(const String &payload) {
-  // Explicit String(): the left operand of the first + is a string literal,
-  // and leaning on Arduino's implicit char*->String promotion there is the
-  // one place in this sketch where a core version could turn it into a
-  // compile error rather than a concatenation.
   String body = String("{\"p_key\":\"" INGEST_KEY "\",\"p_payload\":") + payload + "}";
 
-  http.beginRequest();
-  http.post("/rest/v1/rpc/ingest");
-  http.sendHeader("Content-Type", "application/json");
-  http.sendHeader("apikey", SUPABASE_ANON_KEY);
-  http.sendHeader("Authorization", "Bearer " SUPABASE_ANON_KEY);
-  http.sendHeader("Content-Length", body.length());
-  http.beginBody();
-  http.print(body);
-  http.endRequest();
+  String request = String("POST /rest/v1/rpc/ingest HTTP/1.1\r\n"
+                          "Host: " SUPABASE_HOST "\r\n"
+                          "Content-Type: application/json\r\n"
+                          "apikey: " SUPABASE_ANON_KEY "\r\n"
+                          "Authorization: Bearer " SUPABASE_ANON_KEY "\r\n"
+                          "Content-Length: ") +
+                   String(body.length()) + "\r\n\r\n" + body;
 
-  int status = http.responseStatusCode();
-  String response = http.responseBody();
-  http.stop();
-
-  if (status == 200) {
-    Serial.printf("[HTTP] 200 %s\n", response.c_str());
-    return true;
+  if (request.length() > MODEM_MAX_SEND) {
+    Serial.printf("[HTTP] request is %u bytes, one send holds %u — not sent\n",
+                  (unsigned)request.length(), (unsigned)MODEM_MAX_SEND);
+    return false;
   }
-  Serial.printf("[HTTP] %d %s\n", status, response.c_str());
-  return false;
+
+  if (!netClient.connect(SUPABASE_HOST, SUPABASE_PORT)) {
+    Serial.println("[HTTP] connect FAILED");
+    return false;
+  }
+  netClient.print(request);
+
+  // Read until the body is as long as Content-Length says. A reply without one
+  // (chunked) is read until the timeout; Supabase and the tunnel both send it.
+  String response;
+  int bodyAt = -1;
+  long contentLength = -1;
+  uint32_t start = millis();
+  while (millis() - start < HTTP_TIMEOUT_MS && netClient.connected()) {
+    while (netClient.available()) response += (char)netClient.read();
+    if (bodyAt < 0) {
+      bodyAt = response.indexOf("\r\n\r\n");
+      if (bodyAt >= 0) {
+        String head = response.substring(0, bodyAt);
+        head.toLowerCase();
+        int at = head.indexOf("\r\ncontent-length:");
+        if (at >= 0) contentLength = head.substring(at + 17).toInt();
+      }
+    }
+    if (bodyAt >= 0 && contentLength >= 0 &&
+        (long)response.length() - (bodyAt + 4) >= contentLength) {
+      break;
+    }
+    delay(100);   // each available() is an AT round trip; do not spin on it
+  }
+  netClient.stop();
+
+  // "HTTP/1.1 200 OK" -> 200. No status line at all (timeout, reset) -> 0.
+  int status = response.startsWith("HTTP/")
+                   ? response.substring(response.indexOf(' ') + 1).toInt()
+                   : 0;
+  String reply = bodyAt >= 0 ? response.substring(bodyAt + 4) : response;
+
+  Serial.printf("[HTTP] %d %s\n", status, reply.c_str());
+  return status == 200;
 }
 
-void setup() {
-  Serial.begin(115200);
-  delay(200);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);   // active LOW: off
-
-  Serial.println("[BOOT] T-SIM7000G cellular tag starting");
-  Serial.println("[BOOT] fw=" FW_VERSION);
-  Serial.println("[BOOT] ANTENNA WARNING: attach BOTH the LTE and GNSS antennas.");
-
+// Bring the modem to a known state: powered, initialised, SIM unlocked, radio
+// access technology set. Runs at boot, and again whenever the modem stops
+// answering mid-run.
+static void startModem() {
   powerOnModem();
 
   Serial.print("[MODEM] init ... ");
@@ -253,6 +337,22 @@ void setup() {
     modem.simUnlock(SIM_PIN);
   }
 
+  modem.setNetworkMode(NETWORK_MODE);
+  modem.setPreferredMode(PREFERRED_MODE);
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);   // active LOW: off
+
+  Serial.println("[BOOT] T-SIM7000G cellular tag starting");
+  Serial.println("[BOOT] fw=" FW_VERSION);
+  Serial.println("[BOOT] ANTENNA WARNING: attach BOTH the LTE and GNSS antennas.");
+
+  startModem();
+
   imei = modem.getIMEI();
   // The IMEI is the natural device_id for this board. It is NOT sent in the
   // payload — the ingest key already decides which device row this is — so it
@@ -260,9 +360,6 @@ void setup() {
   //   update public.devices set device_id = '<imei>' where device_id = '<the
   //   id you registered>';   -- readings follow, the FK is ON UPDATE CASCADE
   Serial.printf("[MODEM] imei=%s  <-- this board's device_id\n", imei.c_str());
-
-  modem.setNetworkMode(NETWORK_MODE);
-  modem.setPreferredMode(PREFERRED_MODE);
 
   // Neither GNSS nor the data session is started here: loop() owns both, and
   // starting one in setup() is exactly how the two end up overlapping.
@@ -303,6 +400,15 @@ void loop() {
   }
 
   // --- Network phase (receiver down) ---------------------------------------
+  // On the bench the SIM7000 has gone silent (and once rebooted) around the
+  // GNSS phase. Cause not pinned down; a LiPo sagging under GNSS + radio load
+  // is the suspect. Left alone, a silent modem costs a full NETWORK_TIMEOUT_MS
+  // to notice and then fails every cycle after, so ask first and bring it back.
+  if (!modem.testAT(1000)) {
+    Serial.println("[MODEM] stopped answering, restarting it");
+    startModem();
+  }
+
   // A reading goes out on every cycle regardless of GNSS state. Silence is
   // ambiguous — it cannot be told apart from a dead tag or a dropped session.
   if (!connectNetwork()) {

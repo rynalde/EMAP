@@ -21,7 +21,7 @@ O que a diferencia das demais placas sob pesquisa é a **ausência de gateway**:
 *   **Memória Flash**: 16 MB no chip ESP32 desta revisão (confirmado por leitura direta com `esptool`). Atenção: o perfil `esp32dev` padrão do PlatformIO particiona apenas 4 MB, deixando o restante sem uso.
 *   **Armazenamento Externo**: slot para cartão microSD.
 *   **Alimentação**: conector JST para bateria Li-Po com circuito de recarga, entrada USB-C e entrada dedicada para painel solar com ADC de monitoramento.
-*   **Antenas**: **dois conectores independentes** — um para LTE e outro para GNSS. Ambos são obrigatórios; a ausência da antena GNSS resulta em zero satélites visíveis indefinidamente.
+*   **Antenas**: **dois conectores independentes** — um para LTE e outro para GNSS. Ambos são obrigatórios; a ausência da antena GNSS resulta em zero satélites visíveis indefinidamente. A antena GNSS é **ativa** e sua alimentação sai do GPIO4 do próprio modem: `AT+SGPIO=0,4,1,1` antes de `AT+CGNSPWR=1`, e `AT+SGPIO=0,4,1,0` depois (conforme o exemplo oficial da LILYGO).
 
 ---
 
@@ -59,6 +59,8 @@ A consequência prática é que um ciclo de leitura precisa ser dividido em duas
 Fase GNSS      derrubar sessão de dados → AT+CGNSPWR=1 → consultar AT+CGNSINF → AT+CGNSPWR=0
 Fase de rede   anexar APN → transmitir a leitura → encerrar a sessão
 ```
+
+Derrubar a sessão com `AT+CGATT=0` (o que o `gprsDisconnect()` do TinyGSM faz) é uma desanexação completa: em LTE o modem também sai do registro (`CEREG: 0,0`) e não volta sozinho. A fase de rede precisa começar com `AT+CGATT=1`.
 
 Manter o receptor ligado enquanto o modem está anexado é a causa mais comum de uma T-SIM7000G "nunca obter fix" numa bancada onde um sketch de GNSS puro sincroniza em segundos. Isso também implica que **reanexar à rede a cada ciclo não é opcional**, o que impõe um piso ao intervalo de transmissão e ao consumo.
 

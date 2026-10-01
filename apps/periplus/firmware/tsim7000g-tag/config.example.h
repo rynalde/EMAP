@@ -15,6 +15,19 @@
 // Host only — no scheme, no path. The board POSTs to /rest/v1/rpc/ingest.
 #define SUPABASE_HOST         "lvvulorcvuxuyrnumfay.supabase.co"
 
+// Transport. HTTPS on 443 is the default and the only right answer in the
+// field. Plain HTTP on 80 exists for two cases found on the bench (see
+// experiments/backhaul_celular_lte.md): networks that only let modules out on
+// HTTP ports, and SIM7000 firmware whose SSL stack answers "not supported".
+// Pair it with a tunnel such as `cloudflared tunnel --url http://127.0.0.1:54321`
+// in front of a local Supabase — quick tunnels answer plain HTTP on port 80.
+//
+// OVER HTTP THE INGEST KEY TRAVELS IN CLEAR. Anyone on the path can replay it
+// and write readings as this board. Test keys against a throwaway database
+// only; rotate the key before this board ever points at a real one.
+#define SUPABASE_TLS          1
+#define SUPABASE_PORT         443
+
 // Public anon key. It is public by design and is NOT what authenticates this
 // board; it only gets the request past PostgREST.
 #define SUPABASE_ANON_KEY     ""

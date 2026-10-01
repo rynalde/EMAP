@@ -66,9 +66,12 @@ hardware, because a plain 2G/3G-only SIM will not attach at all with
 
 1. Arduino IDE (or arduino-cli / PlatformIO).
 2. Install **ESP32** board support (Boards Manager → "esp32" by Espressif).
-3. Install libraries (Library Manager):
+3. Install the library (Library Manager):
    * `TinyGSM` (Volodymyr Shymanskyy)
-   * `ArduinoHttpClient` (Arduino)
+
+   HTTP is hand-rolled in the sketch, not ArduinoHttpClient: the request has
+   to leave the modem in a single `AT+CASEND`, and ArduinoHttpClient writes it
+   header by header (see the comment on `postReading()`).
 4. Board: **ESP32 Dev Module**. Upload speed 921600 is fine.
 
 ## Configure
@@ -78,6 +81,25 @@ cp config.example.h config.h
 ```
 
 Fill in `SUPABASE_HOST`, `SUPABASE_ANON_KEY`, `APN`, and `INGEST_KEY`.
+
+### Bench test against a local Supabase
+
+`SUPABASE_TLS 0` / `SUPABASE_PORT 80` sends plain HTTP, for a local Supabase
+behind a tunnel:
+
+```bash
+supabase start          # applies ../../supabase/migrations
+cloudflared tunnel --url http://127.0.0.1:54321
+```
+
+Quick tunnels answer plain HTTP on port 80, so the tunnel host goes straight
+into `SUPABASE_HOST`. The ingest key travels in clear this way — use a
+throwaway database and never a key you will keep.
+
+If every POST comes back `[HTTP] 0`, check the SIM has data credit before
+anything else. A Vivo SIM without it still registers and attaches, but every
+port-80 request is answered by the carrier with a `302` to
+`portalrecarga.vivo.com.br` and closed, and every other port is refused.
 
 `APN` is the only one you cannot get from the project — it comes from your
 carrier.

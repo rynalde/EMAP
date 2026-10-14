@@ -45,3 +45,11 @@ Este arquivo registra o histórico de atualizações estruturais e de conteúdo 
 - A resposta recebida pela placa era um `302` da própria operadora para o portal de recarga (`portalrecarga.vivo.com.br`): o chip estava sem saldo. É o mesmo padrão de portas que fundamentou a conclusão anterior, que passa a exigir novo teste com saldo confirmado.
 - Cinco defeitos de firmware corrigidos: reanexação à rede após `AT+CGATT=0`, requisição HTTP fragmentada em dezenas de `AT+CASEND`, pulso incondicional do PWRKEY, antena GNSS ativa sem alimentação (`AT+SGPIO`) e log `sats=0/0` que não media satélites visíveis.
 - Firmware passa a aceitar HTTP na porta 80 (`SUPABASE_TLS 0`) para testes de bancada; o padrão continua HTTPS na 443.
+
+## [2026-10-14] - Supabase self-hosted e autenticação do `itaqui-digital`
+- Servidor Supabase próprio (release `self-hosted/v0.8.2`) no iMac `omarchy`, publicado em `https://emap.rynalde.com` por um Cloudflare Tunnel; Studio no mesmo endereço, atrás de usuário e senha. Configuração versionada em [`infra/supabase/`](infra/supabase/README.md), segredos apenas no servidor.
+- E-mails de confirmação, redefinição de senha e convite em português, enviados pelo SMTP do Resend a partir de `no-reply@rynalde.com`.
+- Schema do periplus (`devices`, `readings`, `latest_positions`, `ingest`, `register_device`) aplicado ao novo banco.
+- O [`itaqui-digital`](apps/itaqui-digital/README.md#autenticação) passa a exigir login, com telas de entrada, cadastro, verificação de e-mail, recuperação e redefinição de senha.
+- Contas novas ficam pendentes até a aprovação de um administrador em `/admin` (papéis, status, cadastro aberto ou fechado pelo hook `before-user-created`, domínios aprovados automaticamente, e-mail de conta aprovada pelo Resend); o túnel responde 404 ao login por OTP/magic link.
+- Novo [roadmap](software/roadmap_tags_mapa_3d.md) para levar as tags do periplus e suas posições à vista 3D do `itaqui-digital`, com marco M1 em 06/11/2026.

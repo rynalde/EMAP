@@ -1,0 +1,29 @@
+# Camada do EMAP sobre o docker-compose.yml oficial do Supabase self-hosted.
+# Ativada com `sh run.sh config add emap` (entra no COMPOSE_FILE do .env).
+services:
+  auth:
+    depends_on:
+      mail-templates:
+        condition: service_started
+    environment:
+      # Links de confirmação e de redefinição valem 1 h (o padrão do GoTrue é 24 h).
+      GOTRUE_MAILER_OTP_EXP: "3600"
+      # Mesmo mínimo que as telas de cadastro e de redefinição exigem.
+      GOTRUE_PASSWORD_MIN_LENGTH: "8"
+      # "Cadastro aberto/fechado" do painel /admin (public.app_settings) vale também para chamadas diretas à API.
+      GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED: "true"
+      GOTRUE_HOOK_BEFORE_USER_CREATED_URI: pg-functions://postgres/public/hook_before_user_created
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "Confirme seu e-mail — Itaqui Digital"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Redefinição de senha — Itaqui Digital"
+      GOTRUE_MAILER_SUBJECTS_INVITE: "Convite para o Itaqui Digital"
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://mail-templates/confirmation.html
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: http://mail-templates/recovery.html
+      GOTRUE_MAILER_TEMPLATES_INVITE: http://mail-templates/invite.html
+
+  # O GoTrue só lê modelos de e-mail por HTTP; este nginx os serve apenas na rede interna.
+  mail-templates:
+    container_name: supabase-mail-templates
+    image: nginx:1.29.1-alpine
+    restart: unless-stopped
+    volumes:
+      - ./volumes/mail-templates:/usr/share/nginx/html:ro,z

@@ -195,8 +195,11 @@ EMAP/
 │   ├── index.md
 │   └── indoor_positioning.md          ← Mapeamento indoor com ultrassom
 │
+├── infra/
+│   └── supabase/                      ← Supabase self-hosted (emap.rynalde.com): camada do compose, e-mails, túnel
+│
 └── apps/                              ← Código executável
-    ├── itaqui-digital/                ← Gêmeo digital do porto (Next.js + AIS + 3D)
+    ├── itaqui-digital/                ← Gêmeo digital do porto (Next.js + AIS + 3D + login)
     └── periplus/                      ← MVP de rastreamento (firmware + backend)
         ├── firmware/                  ← Sketches das placas (LoRa, BLE CS, celular)
         ├── bridge/                    ← Ponte serial → Supabase (TypeScript)

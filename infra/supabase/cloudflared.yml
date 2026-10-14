@@ -1,0 +1,12 @@
+tunnel: 048055ad-fcad-4a92-a8b9-49749a756ae8
+credentials-file: /etc/cloudflared/048055ad-fcad-4a92-a8b9-49749a756ae8.json
+ingress:
+  # Login por código/magic link não é usado; /otp com create_user=false revela quais e-mails têm conta.
+  # Sem âncora: //, /./, /x/../ e %2e chegam normalizados ao GoTrue, mas o segmento otp continua no caminho.
+  - hostname: emap.rynalde.com
+    path: /(otp|magiclink)(/|$)
+    service: http_status:404
+  # Envoy do Supabase: APIs em /auth, /rest, /realtime, /storage, /functions; o resto é o Studio (basic auth).
+  - hostname: emap.rynalde.com
+    service: http://localhost:8000
+  - service: http_status:404

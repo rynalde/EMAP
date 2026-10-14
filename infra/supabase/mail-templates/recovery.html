@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+  <body style="margin:0;padding:32px 16px;background:#0c181c;font-family:Arial,sans-serif;color:#edf0e9">
+    <table role="presentation" width="100%" style="max-width:480px;margin:0 auto;background:#152328;border-radius:12px">
+      <tr>
+        <td style="padding:32px">
+          <p style="margin:0 0 24px;font-size:20px;font-weight:600">Itaqui <span style="font-weight:300">Digital</span></p>
+          <h1 style="margin:0 0 12px;font-size:18px;font-weight:500">Redefinir senha</h1>
+          <p style="margin:0 0 24px;line-height:1.6;color:#c9d0c8">Recebemos um pedido para redefinir a senha da conta {{ .Email }}. O link vale por uma hora.</p>
+          <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery&next=/redefinir-senha"
+             style="display:inline-block;padding:12px 20px;border-radius:8px;background:#b7e58b;color:#0c181c;font-weight:600;text-decoration:none">Criar nova senha</a>
+          <p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#899795">Se você não fez esta solicitação, ignore este e-mail.</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

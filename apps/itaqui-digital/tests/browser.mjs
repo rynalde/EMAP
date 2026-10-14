@@ -1,6 +1,13 @@
 import { chromium } from "@playwright/test";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
+const { TEST_EMAIL, TEST_PASSWORD } = process.env;
+if (!TEST_EMAIL || !TEST_PASSWORD) {
+  console.log(
+    "SKIP: o app exige login; defina TEST_EMAIL e TEST_PASSWORD de uma conta confirmada e aprovada.",
+  );
+  process.exit(0);
+}
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const context = await browser.newContext({
   viewport: { width: 1512, height: 982 },
@@ -12,6 +19,12 @@ page.on("pageerror", (e) => errors.push(e.message));
 const base = process.env.TEST_BASE_URL || "http://localhost:3000";
 await mkdir("test-results", { recursive: true });
 try {
+  await page.goto(base + "/login");
+  await page.getByLabel("E-mail").fill(TEST_EMAIL);
+  await page.getByLabel("Senha", { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.waitForURL((url) => url.pathname === "/");
+  console.log("PASS: login through /login");
   await page.goto(base);
   await page
     .getByRole("button", { name: "Explorar TEGRAM", exact: true })

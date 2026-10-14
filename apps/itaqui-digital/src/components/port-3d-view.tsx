@@ -43,7 +43,7 @@ const dateTime = (value?: string) => {
       });
 };
 
-export function Port3DView() {
+export function Port3DView({ account }: { account?: React.ReactNode }) {
   const host = useRef<HTMLDivElement>(null);
   const controller = useRef<PortSceneController | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -204,6 +204,7 @@ export function Port3DView() {
         <span className="p3d-status" aria-live="polite">
           <span className="tiny-dot" /> {status}
         </span>
+        {account}
       </header>
 
       <div

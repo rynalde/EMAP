@@ -75,7 +75,7 @@ const NAV = [
   { id: "marine", label: "Marés", icon: Waves },
   { id: "sources", label: "Fontes e dados", icon: Radio },
 ] as const;
-export function PortDashboard() {
+export function PortDashboard({ account }: { account?: React.ReactNode }) {
   const [tab, setTab] = useState<Tab>("overview"),
     [panelOpen, setPanelOpen] = useState(true),
     [query, setQuery] = useState(""),
@@ -283,6 +283,7 @@ export function PortDashboard() {
           >
             <HelpCircle size={19} />
           </button>
+          {account}
           <span className="emap-mark">
             EMAP<small>PORTO DO ITAQUI</small>
           </span>

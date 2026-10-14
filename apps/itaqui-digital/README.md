@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-Abra [localhost:3000](http://localhost:3000). Para produção, execute `npm run build` e `npm start`.
+Antes, copie `.env.example` para `.env.local` (contém as variáveis do Supabase; veja [Autenticação](#autenticação)). Abra [localhost:3000](http://localhost:3000) e entre com sua conta. Para produção, execute `npm run build` e `npm start`.
 
 ## Recursos
 
@@ -70,11 +70,69 @@ Sem a chave, o mapa mostra somente posições aproximadas dos berços de navios 
 
 A conexão WebSocket AIS requer um processo Node.js persistente. Para múltiplas instâncias ou hospedagem serverless, use um coletor persistente e armazenamento compartilhado. Reiniciar o processo limpa o cache e aguarda novas mensagens.
 
+## Autenticação
+
+Todo o app exige login **e conta aprovada por um administrador**. O backend é o Supabase próprio em `https://emap.rynalde.com`, documentado em [infra/supabase](../../infra/supabase/README.md). Confirmação de e-mail é obrigatória, a senha tem no mínimo 8 caracteres e os links de e-mail valem 1 hora.
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://emap.rynalde.com
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+RESEND_API_KEY=re_...   # só servidor: e-mail de conta aprovada
+```
+
+A chave publicável é pública por definição; o app não usa nem deve receber chave secreta (`service_role`). Sem as duas variáveis do Supabase, toda requisição falha com uma mensagem indicando o que falta.
+
+| Rota               | Função                                                                            |
+| ------------------ | --------------------------------------------------------------------------------- |
+| `/login`           | E-mail e senha; volta para `?next=` (só caminhos internos)                        |
+| `/cadastro`        | Nome, e-mail e senha; envia o link de confirmação                                 |
+| `/verificar-email` | Aviso de e-mail enviado e reenvio (um por minuto)                                 |
+| `/esqueci-senha`   | Pede o link de redefinição, com a mesma resposta exista ou não a conta            |
+| `/redefinir-senha` | Nova senha; exige sessão (link de recuperação ou convite, ou usuário logado)      |
+| `/auth/confirm`    | Destino dos links de e-mail; o token só é usado ao clicar em **Continuar** (POST) |
+
+| Rota (com sessão)       | Função                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| `/aguardando-aprovacao` | Aviso para contas pendentes, rejeitadas ou bloqueadas; **Verificar novamente** e **Sair** |
+| `/admin`                | Só administradores aprovados: usuários, papéis e configurações de cadastro                |
+
+O token só é consumido no POST porque filtros de link corporativos (como o Microsoft Safe Links) abrem o GET antes do usuário. O botão **Sair** fica nos cabeçalhos do mapa e da vista 3D.
+
+Como funciona o bloqueio:
+
+- `src/proxy.ts` renova a sessão em cada requisição, manda páginas sem login para `/login?next=…` e responde `401 {"error":"Não autenticado"}` em `/api/*`. Ficam livres as telas de login, `/auth/*`, os internos do Next e os arquivos de `public/data` e `public/models`.
+- Links de e-mail que chegam a outro caminho com `token_hash` e `type` (o GoTrue usa a raiz do `SITE_URL` quando o redirect não está liberado) são encaminhados para `/auth/confirm`.
+- Para quem tem sessão, o proxy lê o `status` em `public.profiles` a cada requisição: só `aprovado` passa. Os demais vão para `/aguardando-aprovacao` e recebem `403 {"error":"Acesso pendente de aprovação"}` em `/api/*`; bloqueio e rejeição valem na requisição seguinte.
+- O layout de `src/app/(app)/` verifica de novo, no servidor, sessão e aprovação antes de renderizar o mapa, a vista 3D e o `/admin`.
+
+### Aprovação, papéis e administração
+
+Todo cadastro novo cria uma linha em `public.profiles` (gatilho no `auth.users`) com status `pendente` e o papel padrão. Os papéis são `admin`, `gestor`, `operador` e `visualizador`; por enquanto só `admin` muda o que o app mostra (o link **Admin** com a contagem de pendentes no menu da conta). Os status são `pendente`, `aprovado`, `rejeitado` e `bloqueado`.
+
+Em `/admin` o administrador filtra por status (`?status=`) e busca por nome ou e-mail (`?q=`), aprova ou rejeita pendentes, bloqueia aprovados, reativa rejeitados e bloqueados e troca o papel. Aprovar e Reativar só aparecem depois que a pessoa confirma o e-mail; o papel escolhido na linha vai junto com a ação. A própria conta não tem ações, e o banco recusa qualquer mudança que deixe o sistema sem administrador aprovado. Rejeitar ou bloquear encerra as sessões da pessoa. As configurações (linha única de `public.app_settings`) são:
+
+- **Cadastro aberto**: fechado, o hook `before-user-created` do GoTrue recusa contas novas e o envio de `/cadastro` responde "Os cadastros estão fechados no momento.";
+- **Aprovação obrigatória**: desligada, contas novas já entram aprovadas;
+- **Papel padrão** das contas novas (nunca Administrador);
+- **Domínios aprovados automaticamente** (ex.: `emap.ma.gov.br`): e-mails desses domínios dispensam a aprovação.
+
+O app só lê e escreve por RLS e por funções SQL `security definer` que conferem se quem chama é administrador; a migration está em `supabase/migrations/20261014180000_user_approval_admin.sql` e os testes SQL em `supabase/tests/user_approval_admin.sql`.
+
+Ao aprovar ou reativar alguém, o servidor do app envia "Sua conta no Itaqui Digital foi aprovada" pela API do Resend, com link fixo para `https://itaqui-digital.vercel.app/login` (o `SITE_URL`), qualquer que seja a origem do administrador. **Configure `RESEND_API_KEY` na Vercel** (Production e Preview, nunca com prefixo `NEXT_PUBLIC_`); sem ela, ou se o Resend falhar, a aprovação vale do mesmo jeito e a tela avisa "aprovado, mas o e-mail de aviso não foi enviado".
+
+O primeiro administrador é promovido à mão, depois de se cadastrar e confirmar o e-mail (SQL Editor do Studio ou `psql` no servidor):
+
+```sql
+update public.profiles set role = 'admin', status = 'aprovado' where email = '<e-mail>';
+```
+
+Os links de e-mail só funcionam em origens liberadas no servidor: `http://localhost:3000` e `https://itaqui-digital.vercel.app`. As prévias da Vercel não são liberadas (qualquer pessoa registra um `itaqui-digital-*.vercel.app`): os links pedidos nelas caem no `SITE_URL` de produção, e o proxy os leva para `/auth/confirm`. Rode o desenvolvimento na porta 3000.
+
 ## Publicar na Vercel
 
 O diretório raiz do projeto na Vercel é `apps/itaqui-digital`. O arquivo `vercel.json` já define o framework, a região `gru1` (São Paulo), o limite de 20 segundos para as rotas em `src/app/api` — acima dos 12 segundos de espera pelas fontes externas — e ignora o build dos commits que não tocam este diretório.
 
-Nenhuma variável de ambiente é obrigatória. Mapa, clima, marés e programação EMAP funcionam somente com as fontes públicas.
+Configure `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` em Production e Preview; sem elas nenhuma página abre (veja [Autenticação](#autenticação)). Configure também `RESEND_API_KEY` para o e-mail de conta aprovada. Mapa, clima, marés e programação EMAP continuam usando somente fontes públicas.
 
 **Não configure `AISSTREAM_API_KEY` na Vercel.** A integração AIS depende de um WebSocket persistente e de memória compartilhada entre requisições, o que não existe em funções serverless: cada instância reconecta do zero e devolve a lista vazia. Para posições AIS reais, mantenha um coletor persistente próprio, conforme [Ativar posições AIS](#ativar-posições-ais).
 
@@ -111,10 +169,10 @@ A data da fonte aparece nos detalhes dos navios. Registros EMAP acima de 7 dias 
 npm run typecheck
 npm test
 npm run build
-# Com o servidor iniciado e Google Chrome instalado:
-npm run test:browser
+# Com o servidor iniciado, Google Chrome instalado e uma conta confirmada e aprovada:
+TEST_EMAIL=voce@exemplo.com TEST_PASSWORD=... npm run test:browser
 ```
 
-Os testes cobrem extração da programação, validade das posições e mensagens AIS, além da projeção e do alinhamento dos berços da vista 3D. A verificação no navegador cobre APIs, navegação 2D, camadas, busca, filtros de navios, detalhes, ajuda, falha do clima, a vista 3D e layouts desktop e mobile. Capturas são gravadas em `test-results/`.
+Os testes cobrem o filtro de `?next=`, as mensagens de erro de login e de cadastro fechado, a lista de domínios, as mensagens de aprovação e o e-mail de conta aprovada, extração da programação, validade das posições e mensagens AIS, além da projeção e do alinhamento dos berços da vista 3D. A verificação no navegador entra por `/login` (sem `TEST_EMAIL` e `TEST_PASSWORD` ela é pulada) e cobre APIs, navegação 2D, camadas, busca, filtros de navios, detalhes, ajuda, falha do clima, a vista 3D e layouts desktop e mobile. Capturas são gravadas em `test-results/`.
 
 Para testar outra instância: `TEST_BASE_URL=http://localhost:3001 npm run test:browser`.

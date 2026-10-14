@@ -15,6 +15,8 @@
     "format": "prettier --write src tests scripts next.config.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.3",
     "cheerio": "^1.1.0",
     "lucide-react": "^0.468.0",
     "maplibre-gl": "^5.20.0",
